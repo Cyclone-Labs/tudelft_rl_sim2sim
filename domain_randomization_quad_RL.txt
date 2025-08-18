@@ -1,0 +1,1115 @@
+One Net to Rule Them All: Domain Randomization in Quadcopter
+Racing Across Different Platforms
+
+arXiv:2504.21586v1 [cs.RO] 30 Apr 2025
+
+Robin Ferede, Till Blaha, Erin Lucassen, Christophe De Wagter, Guido C.H.E. de Croon
+Abstract— In high-speed quadcopter racing, finding a single
+controller that works well across different platforms remains
+challenging. This work presents the first neural network
+controller for drone racing that generalizes across physically
+distinct quadcopters. We demonstrate that a single network,
+trained with domain randomization, can robustly control various types of quadcopters. The network relies solely on the
+current state to directly compute motor commands. The effectiveness of this generalized controller is validated through realworld tests on two substantially different crafts (3-inch and 5inch race quadcopters). We further compare the performance of
+this generalized controller with controllers specifically trained
+for the 3-inch and 5-inch drone, using their identified model
+parameters with varying levels of domain randomization (0%,
+10%, 20%, 30%). While the generalized controller shows
+slightly slower speeds compared to the fine-tuned models, it
+excels in adaptability across different platforms. Our results
+show that no randomization fails sim-to-real transfer while
+increasing randomization improves robustness but reduces
+speed. Despite this trade-off, our findings highlight the potential
+of domain randomization for generalizing controllers, paving
+the way for universal AI controllers that can adapt to any
+platform.
+Index Terms— Drone Racing, Reinforcement Learning, Domain Randomization, Reality Gap, Sim-to-real Transfer
+
+I. INTRODUCTION
+The drone market is experiencing rapid growth [1], yet
+most applications still rely on human pilots. Given that
+battery life limits flight times, enhancing the speed and
+autonomy of drones offers significant advantages [2]. As a
+result, research into autonomous drone racing is a growing
+field that contributes to advancing technology and enhancing
+drone capabilities.
+One of the significant challenges in drone racing is the development of controllers that generalize well across different
+quadcopter platforms. While human pilots can easily adapt to
+various drones with minimal adjustments, current racing AI
+systems often overfit to their specific platforms, restricting
+their generalization capabilities. This limitation hampers the
+transfer of current drone racing technology to other realworld applications [2].
+Recent advancements in quadcopter control have predominantly focused on Reinforcement Learning (RL) techniques
+[3]–[7]. These methods have demonstrated impressive results
+in drone racing, with neural controllers surpassing human
+champions [6]. However, these achievements rely on precise
+1 The authors are with the Micro Air Vehicle Lab of the Faculty of
+Aerospace Engineering, Delft University of Technology, 2629 HS Delft,
+The Netherlands robinferede@tudelft.nl, t.m.blaha@tudelft.nl,
+
+e.lucassen@student.tudelft.nl, c.deWagter@tudelft.nl,
+g.c.h.e.deCroon@tudelft.nl
+
+Fig. 1. We train a single neural network to control physically distinct
+drones. The time-lapse image demonstrates the successful sim-to-real transfer of the reinforcement-learned network, enabling it to perform drone racing
+with both 3-inch and 5-inch quadcopters.
+
+modeling of the drone platforms and struggle to generalize
+across different drones.
+Domain randomization (DR) has emerged as a prominent
+method for transferring RL policies across different environments. This technique involves training policies in simulated environments with varied parameters to improve their
+robustness when deployed in real-world scenarios [8]. For
+instance, DR has facilitated single-shot sim-to-real transfer
+for robot manipulation [9], visual navigation using synthetic
+data [10], and object detection [11]. Additionally, in endto-end quadcopter control, DR, combined with real-time
+adaptation, has been critical for bridging the reality gap
+[12]–[14]. However, although DR enhances robustness, it
+comes with trade-offs, including longer training times and
+diminished performance optimality [8], [15].
+Current research on generalized quadcopter control has
+only focused on low-level tasks in near-hover or recovery-tohover conditions, with little exploration into racing scenarios
+that demand both guidance and control at significantly higher
+speeds. Recent studies have explored various approaches:
+one developed a network for stabilizing low-level control
+(position control and trajectory tracking) that generalizes
+to various quadcopters using domain randomization [16].
+Another method [17] introduced a single-shot real-time
+technique for controlling an unknown quadcopter through
+iterative determination of the actuator effectiveness parameters of an INDI controller, expanding on the work of
+[18]. Additionally, recent work trained a neural network to
+estimate a latent representation of quadcopter parameters,
+conditioning another neural network controller for near-hover
+flight, enabling online adaptation to varying hardware and
+
+disturbances during real-world deployment [19].
+In this work, we extend these results to drone racing by
+using domain randomization to develop a neural network
+controller for high-speed racing that generalizes across different quadcopters. Our controller maps state information
+directly to motor commands, enabling end-to-end guidance
+and control. Our key contributions include:
+1) Introducing, to the best of our knowledge, the first
+neural network controller capable of operating across
+different drones for high-speed racing
+2) Investigation into the effects of varying degrees of
+domain randomization on sim-to-real transferability
+and flight speed performance.
+This paper is organized as follows: Sec. II presents the
+drone model and control formulation; Sec. III describes the
+experimental setup; Sec. IV analyzes the performance of the
+general control network and examines the effects of varying
+degrees of domain randomization; and Sec. V provides the
+conclusion and outlines directions for future work.
+II. METHODOLOGY
+A. Quadcopter model
+To train our neural policies we simulate our quadcopter
+dynamics with a parametric model similar to the one outlined
+in [14]. The quadcopter’s state and control are given by:
+x = [p, v, λ, Ω, ω]T
+
+u = [u1 , u2 , u3 , u4 ]T
+
+Here p is the position of the drone, v is the velocity, λ
+are the Euler angles, Ω are the body rates and ω are the
+propeller speed in rad/s. u ∈ [0, 1]4 represents the normalized
+commands sent to the motor controllers. The equations of
+motion are expressed as follows:
+ṗ = v
+
+v̇ = ge3 + R(λ)F
+
+λ̇ = Q(λ)Ω
+
+Ω̇ = M
+
+(1)
+
+ω̇i = (ωci − ω)/τ
+
+(2)
+
+Where R is the rotation matrix and Q transforms body rates
+to Euler angle derivatives. The steady
+p state motor response is
+modeled as: ωci = (ωmax − ωmin ) kl u2i + (1 − kl )ui + ωmin .
+The specific force F and the moment M 1 are modeled as:
+h
+
+F= −
+
+4
+X
+i=1
+
+kx vxB ωi , −
+
+4
+X
+i=1
+
+ky vyB ωi , −
+
+4
+X
+
+kω ωi2
+
+iT
+
+i=1
+
+
+−kp1 ω12 − kp2 ω22 + kp3 ω32 + kp4 ω42
+ −kq1 ω12 + kq2 ω22 − kq3 ω32 + kq4 ω42 
+
+M=
+ −kr1 ω1 + kr2 ω2 + kr3 ω3 − kr4 ω4 + 
+... − kr5 ω̇1 + kr6 ω̇2 + kr7 ω̇3 − kr8 ω̇4
+
+
+The parameters k□ , ωmin , ωmax are estimated from manual
+flight data for both the 3-inch and 5-inch quadcopters using
+linear regression. We normalize the parameters based on the
+1 M represents angular acceleration. The moment of inertia is inderectly
+estimated throught the k□ and gyroscopic effects are ignored.
+
+TABLE I
+PARAMETERS IDENTIFIED FOR 3 INCH AND 5 INCH DRONE
+param
+k̂ω
+k̂x
+k̂y
+
+3 inch
+14.3
+0.16
+0.18
+
+5 inch
+27.1
+0.16
+0.24
+
+k̂p1
+k̂p2
+k̂p3
+k̂p4
+k̂q1
+k̂q2
+k̂q3
+k̂q4
+
+615.0
+598.0
+650.0
+479.0
+217.0
+238.0
+280.0
+196.0
+
+711.0
+718.0
+691.0
+724.0
+573.0
+637.0
+548.0
+640.0
+
+param
+ωmin (rad/s)
+ωmax (rad/s)
+kl
+τ (sec)
+k̂r1
+k̂r2
+k̂r3
+k̂r4
+k̂r5
+k̂r6
+k̂r7
+k̂r8
+
+3 inch
+305.4
+4887.57
+0.84
+0.04
+47.1
+47.1
+47.1
+47.1
+5.57
+5.57
+5.57
+5.57
+
+5 inch
+238.49
+3295.5
+0.95
+0.04
+35.2
+35.2
+35.2
+35.2
+6.49
+6.49
+6.49
+6.49
+
+maximum angular velocity ωmax . The normalized parameters
+are:
+2
+k̂ω , k̂pi , k̂qi = (kω , kpi , kqi ) × ωmax
+k̂xi , k̂yi , k̂ri = (kxi , kyi , kri ) × ωmax
+This scaling accounts for variations in ωmax and ensures
+consistency across the model. The estimated values can be
+found in Tab. I. These parameters highlight the distinct
+control characteristics of each platform. For instance, the
+3-inch platform has approximately half the thrust-to-weight
+ratio (proportional to k̂ω ), motors that spin 50% faster, and
+less than half the pitch effectiveness (k̂pi ) compared to the
+5-inch platform.
+B. RL problem definition
+The racing setup consists of seven square gates, each
+measuring 1.5x1.5 meters, arranged in a figure-eight track,
+as shown in Fig. 1. The drone starts 1 meter in front of a
+randomly selected gate, in a similar fashion as [3]. The other
+initial state variables are defined as follows: v ∈ [−0.5, 0.5]3 ,
+ϕ, θ ∈ [− π9 , π9 ], ψ ∈ [−π, π], Ω ∈ [−0.1, 0.1]3 , and
+ω ∈ [ωmin , ωmax ]. Similar to [5] the reward function to be
+optimised consists of a progress reward, a rate penalty and
+a collision penalty:
+(
+−10,
+if collided
+rk =
+||pk−1 − pgk || − ||pk − pgk || − c||Ω|| otherwise
+Here, pgk denotes the position of the center of the current
+target gate, while pk , pk−1 are the drone’s current and
+previous positions. The rate penalty coefficient is set to
+c = 0.001. A collision is registered when the drone either
+makes contact with the ground or when it flies outside of a
+10x10x7m bounding box. When a collision is registered, the
+episode ends. Additionally when a gate is missed (i.e. drone
+passes gate plane outside of 1.5x1.5m area, the episode also
+ends.
+This reward function, together with the quadcopter model
+from the previous section, is used to create a gym environment for training with the PPO algorithm [20], utilizing the
+Python library Stable-Baselines3 [21]. Our implementation
+simulates 100 drones in parallel, uses a discount factor of
+γ = 0.999 and a maximum episode length of 1200 time steps
+
+TABLE II
+R ANDOMIZATION SCHEME FOR THE GENERAL POLICY
+Parameter
+ωmin
+ωmax
+kl
+τ
+k̂p
+k̂q
+k̂r
+k̂rd
+
+Distribution
+U (0, 500)
+U (3000, 5000)
+U (0, 1)
+U (0.01, 0.1)
+U (200, 800)
+U (200, 800)
+U (20, 80)
+U (2, 8)
+
+Parameter
+k̂ω
+k̂x
+k̂y
+
+Distribution
+U (10, 30)
+U (0.1, 0.3)
+U (0.1, 0.3)
+
+k̂p1 , k̂p2 , k̂p3 , k̂p4
+k̂q1 , k̂q2 , k̂q3 , k̂q4
+k̂r1 , k̂r2 , k̂r3 , k̂r4
+k̂r5 , k̂r6 , k̂r7 , k̂r8
+
+k̂p ± U (50)
+k̂q ± U (50)
+k̂r
+k̂rd
+
+data from a TDK InvenSense ICM-42688-P IMU, and position/attitude observations from an external optical motion
+capture system (Optitrack). The state is then used by the
+Neural Network, onboard, at an update rate of 1000Hz.
+
+(12 seconds). The training process concludes after a total of
+100 million time steps. The code for our implementation is
+openly available on GitHub2 .
+C. Randomization
+1) General policy: The randomization outlined in Tab.
+II trains the general policy to control the 3-inch and 5inch quadcopters. Uniform distributions were designed to
+encompass parameters from both sizes.
+2) Fine tuned policy: We train five policies for the 3- and
+5 inch quadcopter by applying randomization to the values
+from Tab. I, introducing variations of 0%, 10%, 20%, and
+30%. Specifically, each parameter is multiplied by U(1 −
+p, 1 + p), where p represents the randomization percentage.
+The thrust linearization constant kl is an exception, as it is
+capped to ensure it remains below 1.
+D. Policy
+The selected neural policy is a three-layer fully connected
+network with ReLU activation functions, with 64 neurons
+per layer (see Sec. IV-A for motivation). The policy takes
+in 20 observations, including the quadcopter’s state and
+information about current and future gates, similar to prior
+work [14]:
+gi
+
+gi
+
+xobs = [p , v , λ
+
+gi
+
+i
+, Ω, ω, pggii+1 , ψggi+1
+]T
+
+(3)
+
+Here, gi denotes the reference frame of the i−th gate, and
+pgi+1 and ψgi+1 represent the position and orientation of
+the next gate. The network outputs four motor commands
+(u). Because domain randomization is applied to the model
+parameters, these parameters become part of the state in the
+Markov decision process (MDP). As a result, the full state
+is not completely observable with the current observation
+formulation [15]. Some approaches try to address this by
+incorporating state or action history into the observation [6],
+[22], while others use parameter inputs [19]. In Sec. IV-A,
+we explore these methods and justify our choice of Eq. 3.
+III. EXPERIMENTAL SETUP
+We test our policies on two quadcopters. Common between them is the compute hardware and experimental infrastructure: we use an STM32H743 microcontroller running
+INDIflight3 , a fork of Betaflight. An onboard EKF fuses
+2 https://github.com/tudelft/optimal_quad_control_
+RL/tree/icra2025
+3 https://github.com/tudelft/indiflight
+
+Fig. 2. This picture shows the drone used for testing. Instead of bolts, four
+cornerpieces of Moongel are placed on top of the base frame, on which a
+3D printed casing with the flight controller is placed. A second layer of
+Moongel is then placed on the casing, which is then slightly compressed
+downward by means of two zip-ties.
+
+During initial testing, at high speeds, propeller vibrations
+caused the accelerometer to saturate, exceeding the ±16g
+limit of the accelerometer. We aimed to address this problem
+by adding a vibration damping pad as shown in Fig. 2. Sorbothane, adhesive tape and Moongel Damper Pads [23] were
+compared, but the latter proved to provide the most effective
+high-frequency resonance control whilst still transmitting
+the lower frequency true movements of the drone. This
+result aligns with findings from previous research on damper
+pad performance, where Moongel was indeed shown to be
+optimal at eliminating noise [24]. The 3D-printed casing,
+while not mandatory, aids in distributing the forces more
+evenly across the FC, whereas the zip-ties connected to the
+base frame provide preloaded compression for maintaining
+stability and improving damping performance.
+IV. RESULTS
+A. Selecting Architecture
+We evaluated several architectures using the randomized
+simulator and selected the 3-layer 64-neuron architecture as
+the best based on the highest obtained mean episode rewards
+from three independent runs, each consisting of 100 million
+time steps. Network size comparisons are illustrated in Fig. 3.
+Next, we modified the selected architecture to address partial
+observability by adding various inputs. The modifications
+included:
+• Adding the last 1, 2, or 3 actions to the observation
+• Adding the last 1, 2, or 3 actions with stepsize 10 (steps
+of 0.1s in the past)
+• Adding state history (last 1, 2, or 3 states, with or
+without stepsize 10)
+• Adding model parameters (ground truth) or with 10%
+and 20% noise
+Each variation followed the same training setup and was
+evaluated over 1000 rollouts. See Fig. 4 for results. None
+of the modified inputs showed a clear improvement, leading
+us to exclude them from further use. This unexpected result
+indicates a need for further investigation, which may involve
+longer training periods, hyperparameter tuning, or alternative
+
+Fig. 4. Comparison of training performance with various input modifications to the 64,64,64 ReLU network.
+
+Fig. 3. Comparison of network sizes: The 64,64,64 architecture achieved
+the highest mean episode reward among the evaluated architectures, based
+on three independent runs with 100 million time steps each.
+TABLE III
+S IMULATION RESULTS AVERAGED OVER 1000 POLICY ROLLOUTS
+
+#gates
+
+%crash
+
+ep rew
+
+ep len
+
+#gates
+
+%crash
+
+5inch sim
+
+ep len
+
+3inch sim
+ep rew
+
+network
+
+general
+
+64.67
+
+1140
+
+40
+
+5.4
+
+76.78
+
+1186
+
+52
+
+1.2
+
+3inch 30%
+3inch 20%
+3inch 10%
+3inch 0%
+
+59.97
+69.02
+77.59
+78.55
+
+1200
+1200
+1197
+1193
+
+41
+43
+46
+46
+
+0.0
+0.0
+0.3
+0.6
+
+3.95
+-6.24
+-2.24
+-1.78
+
+204
+127
+70
+89
+
+4
+3
+2
+2
+
+99.8
+100
+100
+100
+
+5inch 30%
+5inch 20%
+5inch 10%
+5inch 0%
+
+4.23
+-0.35
+4.57
+-0.69
+
+195
+125
+218
+143
+
+3
+1
+4
+1
+
+100
+100
+100
+100
+
+74.03
+88.33
+92.76
+99.35
+
+1199
+1197
+1183
+1179
+
+49
+58
+55
+59
+
+0.1
+0.3
+1.5
+2.0
+
+parameter representations. For the remainder of this paper,
+we will focus on the network without additional inputs.
+B. Simulation
+We trained the selected architecture on 9 different environments: the general randomization described in Sec. IIC.1 and the fine-tuned models described in Sec. II-C.2,
+which include 3-inch and 5-inch drones with 0%, 10%, 20%,
+and 30% randomization levels. Training followed the same
+procedure as above. Performance was evaluated with 1000
+rollouts on both the 3-inch and 5-inch drone environments
+(with identical initial conditions sampled from the ranges
+described in II-B). See Tab. III. As shown, the general model
+performs effectively across both quadcopter simulations,
+navigating gates with a crash rate of 5.4% in the 3-inch
+environment and 1.2% in the 5-inch environment. However,
+it underperforms slightly compared to the fine-tuned models
+for each specific drone. Interestingly, the fine-tuned models
+do not transfer between drone types, resulting in 100% crash
+
+rates due to non-overlapping parameter ranges, even with
+30% randomization. Among the fine-tuned models, lower
+randomization levels correlate with higher mean episode
+rewards, though at the cost of a slight increase in crash rates.
+C. Real flights
+We now test the networks that performed well in simulation on their respective platforms. Specifically, fine-tuned
+models are evaluated on their designated platforms, while
+the general model is tested on both the 3-inch and 5inch quadcopters. All flights begin from a hover state, 1
+meter in front of gate 1, and are repeated three times (12
+seconds each, matching the maximum episode length used
+in the RL framework). The first flight uses a fully charged
+battery, with subsequent flights performed as the battery
+depletes, leaving it near empty by the third run. Flight logs
+are subsampled at 100Hz to match the simulator’s time
+step, enabling direct comparison through the episode reward
+metric. Additionally, each flight is replicated in the simulator
+using the same initial conditions. The trajectories of both
+real and simulated flights are shown in Fig. 5. It can be
+seen here that the general network successfully navigates the
+race track on both drones, albeit slightly slower. Performance
+metrics for all flights are presented in Tab. IV-B and IV-B,
+showing that as randomization decreases from 30% to 10%,
+performance improves, with the highest rewards at 10%. At
+0% randomization, the drone no longer passes through the
+gates. Fig. 6 provides a box plot of the episode rewards,
+clearly illustrating how the reality gap widens as domain
+randomization decreases.
+D. Time Optimality
+The rewards in the framework are designed to learn
+time-optimal flight. It is useful to not only compare the
+achieved episode rewards to the optimal during training
+
+Fig. 5. Comparison of real-world and simulated flight trajectories for 3-inch and 5-inch quadcopters, using the general policy (for both platforms) and
+fine-tuned policies (trained on their respective parametric models) with 30%, 20%, 10%, and 0% randomization
+
+TABLE IV
+P ERFORMANCE MEASURES : 3- INCH FLIGHTS
+
+37
+37
+37
+36
+35
+35
+39
+39
+38
+5
+5
+7
+
+6.4
+6.34
+6.33
+6.61
+6.54
+6.49
+7.13
+7.13
+7.05
+6.58
+6.49
+6.51
+
+9.03
+8.73
+8.85
+10.73
+10.71
+10.48
+12
+11.56
+11.39
+11.46
+11.25
+10.87
+
+60.44
+60.61
+60.6
+69.67
+69.67
+69.72
+77.74
+78.17
+78.11
+80.82
+81.09
+80.93
+
+41
+41
+41
+43
+43
+43
+46
+46
+46
+46
+46
+46
+
+6.86
+6.86
+6.86
+7.56
+7.55
+7.56
+8.45
+8.46
+8.46
+8.79
+8.78
+8.77
+
+9.76
+9.68
+9.67
+11.58
+11.58
+11.58
+13.15
+13.24
+13.25
+12.8
+12.49
+12.38
+
+10.99
+10.96
+10.94
+
+61.51
+61.22
+60.65
+
+46
+46
+46
+
+7.83
+7.84
+7.8
+
+9.88
+9.83
+9.84
+
+77.14
+77.5
+77.74
+
+53
+53
+53
+
+9.09
+9.12
+9.14
+
+11.03
+11.37
+11.26
+
+63.22
+62.87
+62.59
+71.08
+71.44
+71.3
+71.83
+72.67
+71.98
+10.62
+17.16
+11.34
+
+42
+42
+41
+48
+49
+48
+46
+47
+46
+8
+13
+8
+
+7.01
+7.01
+6.98
+8.13
+8.16
+8.13
+8.63
+8.73
+8.63
+6.96
+7.46
+7.43
+
+8.82
+8.73
+8.7
+11.8
+11.74
+11.52
+12.45
+12.18
+12.07
+11.84
+13.13
+12.39
+
+74.38
+74.1
+73.7
+89.44
+89.56
+89.84
+95.68
+94.93
+95.67
+99.9
+100.55
+97.48
+
+48
+48
+48
+58
+58
+58
+58
+58
+58
+60
+59
+59
+
+8.01
+8.01
+8
+9.99
+9.99
+10
+10.53
+10.52
+10.54
+11.34
+11.34
+11.27
+
+10.22
+10.15
+10.1
+13.8
+13.9
+14.09
+12.81
+12.81
+13.05
+15.4
+15.53
+15.37
+
+0%
+
+10%
+
+20%
+
+30%
+
+Gen
+
+Vmax
+
+53.92
+53.48
+53.25
+55.97
+55.4
+55.32
+59.86
+59.99
+59.34
+7.08
+7.11
+10.18
+
+Vmean
+
+8.59
+8.59
+8.6
+
+#gates
+
+42
+42
+42
+
+ep rew
+
+69.76
+69.77
+69.97
+
+Vmax
+
+10.58
+10.33
+10.4
+
+Vmean
+
+Vmean
+
+6.38
+6.38
+6.31
+
+#gates
+
+#gates
+
+31
+31
+31
+
+Simulation
+
+ep rew
+
+ep rew
+
+49.73
+49.38
+48.78
+
+Real Flight
+
+Vmax
+
+Vmax
+
+net
+
+Vmean
+
+Simulation
+
+#gates
+
+Real Flight
+ep rew
+
+0%
+
+10%
+
+20%
+
+30%
+
+Gen
+
+net
+
+TABLE V
+P ERFORMANCE MEASURES : 5- INCH FLIGHTS
+
+drag terms, we attribute the bulk of the difference to the
+sub-optimal path taken by the RL policies; relatively far
+away from the edges of the gates. However, the optimal
+control approach returns 1.53s when forcing passing the
+gate-centers. This suggests that our reward function does
+not perfectly align with optimizing lap times. As shown
+in Tab. IV-B, the 10% fine-tuned network achieves the
+highest real-life performance in terms of episode reward,
+yet it flies through fewer gates than the 20% variant.
+We therefore conclude that, to achieve more time-optimal
+performance on a tight track, the reward function should
+include terms that allow better tuning of the risk-reward
+balance, encouraging the agent to fly closer to the gate edges.
+Fig. 6. Domain randomization enables the same network to fly different
+quadcopters; however with performance penalties. No domain randomization results in failed sim2real transfer: our DR approach stands as an
+alternative to higher modeling effort, at a small performance cost.
+
+Fig. 7. The optimal control solution through the race track for the 5inch
+quadcopter
+
+but also compare actual lap times to time-optimal flight
+as a means of validation and context. The optimal figure
+8 path (see Fig.7) was formulated as a boundary value
+problem and solved with [25] for the 5-inch model, yielding
+a theoretical lap-time of 1.07s, compared to 1.6s for our
+fastest RL policies in simulation, and 1.9s in real-life.
+Even though the time-optimal program did not include
+
+V. CONCLUSION
+In this work, we introduced a neural network controller for
+high-speed drone racing capable of operating across multiple
+quadcopter platforms. We demonstrated its effectiveness with
+real flights on both 3-inch and 5-inch quadcopters at speeds
+up to 10 m/s. Our benchmarking involved comparing this
+generalized controller against neural policies specifically
+trained for the 3-inch and 5-inch quadcopters with varying levels of domain randomization. While our generalized
+model showed slightly reduced performance compared to
+the fine-tuned controllers, it exhibited superior transferability
+across platforms. Our experiments revealed that increased
+domain randomization initially enhances robustness and
+helps bridge the reality gap. However, excessive randomization ultimately compromises flight speed. We explored incorporating online adaptation into our network, as discussed in
+[17] and [19], but did not achieve the desired improvements.
+Potential factors include training duration, hyperparameter
+tuning, or the choice of parameter representations. Nevertheless, the significant success of our generalized approach, even
+without additional inputs, highlights its promise and paves
+the way for future research. Addressing the identified challenges could lead to substantial performance enhancements,
+making this an exciting avenue for further exploration.
+
+R EFERENCES
+[1] M. Hassanalian and A. Abdelkefi, “Classifications, applications, and
+design challenges of drones: A review,” Progress in Aerospace Sciences, vol. 91, pp. 99–131, 2017.
+[2] D. Hanover, A. Loquercio, L. Bauersfeld, A. Romero, R. Penicka,
+Y. Song, G. Cioffi, E. Kaufmann, and D. Scaramuzza, “Autonomous
+Drone Racing: A Survey,” IEEE Transactions on Robotics, vol. 40,
+pp. 3044–3067, Jan. 2024.
+[3] Y. Song, M. Steinweg, E. Kaufmann, and D. Scaramuzza, “Autonomous drone racing with deep reinforcement learning,” in 2021
+IEEE/RSJ International Conference on Intelligent Robots and Systems
+(IROS). IEEE, 2021, pp. 1205–1212.
+[4] R. Penicka, Y. Song, E. Kaufmann, and D. Scaramuzza, “Learning
+minimum-time flight in cluttered environments,” IEEE Robotics and
+Automation Letters, vol. 7, no. 3, pp. 7209–7216, 2022.
+[5] Y. Song, A. Romero, M. Müller, V. Koltun, and D. Scaramuzza,
+“Reaching the limit in autonomous racing: Optimal control versus
+reinforcement learning,” Science Robotics, vol. 8, no. 82, p. eadg1462,
+2023. [Online]. Available: https://www.science.org/doi/abs/10.1126/
+scirobotics.adg1462
+[6] E. Kaufmann, L. Bauersfeld, A. Loquercio, M. Müller,
+V. Koltun, and D. Scaramuzza, “Champion-level drone
+racing using deep reinforcement learning,” Nature, vol. 620,
+no. 7976, pp. 982–987, Aug 2023. [Online]. Available:
+https://doi.org/10.1038/s41586-023-06419-4
+[7] J. Eschmann, D. Albani, and G. Loianno, “Learning to Fly in Seconds,” Nov. 2023, arXiv:2311.13081.
+[8] J. Josifovski, M. Malmir, N. Klarmann, B. L. Žagar, N. NavarroGuerrero, and A. Knoll, “Analysis of randomization effects on
+sim2real transfer in reinforcement learning for robotic manipulation
+tasks,” in 2022 IEEE/RSJ International Conference on Intelligent
+Robots and Systems (IROS). IEEE, 2022, pp. 10 193–10 200.
+[9] O. M. Andrychowicz, B. Baker, M. Chociej, R. Jozefowicz, B. McGrew, J. Pachocki, A. Petron, M. Plappert, G. Powell, A. Ray et al.,
+“Learning dexterous in-hand manipulation,” The International Journal
+of Robotics Research, vol. 39, no. 1, pp. 3–20, 2020.
+[10] A. Loquercio, E. Kaufmann, R. Ranftl, A. Dosovitskiy, V. Koltun,
+and D. Scaramuzza, “Deep drone racing: From simulation to reality
+with domain randomization,” IEEE Transactions on Robotics, vol. 36,
+no. 1, pp. 1–14, 2019.
+[11] J. Tobin, R. Fong, A. Ray, J. Schneider, W. Zaremba, and P. Abbeel,
+“Domain randomization for transferring deep neural networks from
+simulation to the real world,” in 2017 IEEE/RSJ international conference on intelligent robots and systems (IROS). IEEE, 2017, pp.
+23–30.
+[12] R. Ferede, G. de Croon, C. De Wagter, and D. Izzo, “End-to-end neural
+network based optimal quadcopter control,” Robotics and Autonomous
+Systems, vol. 172, p. 104588, 2024.
+
+[13] S. Origer, C. De Wagter, R. Ferede, G. C. de Croon, and D. Izzo,
+“Guidance & control networks for time-optimal quadcopter flight,”
+arXiv preprint arXiv:2305.02705, 2023.
+[14] R. Ferede, C. De Wagter, D. Izzo, and G. C. De Croon, “End-to-end
+reinforcement learning for time-optimal quadcopter flight,” in 2024
+IEEE International Conference on Robotics and Automation (ICRA).
+IEEE, 2024, pp. 6172–6177.
+[15] G. Tiboni, P. Klink, J. Peters, T. Tommasi, C. D’Eramo, and G. Chalvatzaki, “Domain randomization via entropy maximization,” arXiv
+preprint arXiv:2311.01885, 2023.
+[16] A. Molchanov, T. Chen, W. Hönig, J. A. Preiss, N. Ayanian, and G. S.
+Sukhatme, “Sim-to-(multi)-real: Transfer of low-level robust control
+policies to multiple quadrotors,” in 2019 IEEE/RSJ International
+Conference on Intelligent Robots and Systems (IROS). IEEE, 2019,
+pp. 59–66.
+[17] T. Blaha, E. Smeur, and B. Remes, “Control of Unknown Quadrotors
+from a Single Throw,” arXiv, vol. arXiv:2406.11723, 2024.
+[18] E. J. J. Smeur, Q. Chu, and G. C. H. E. de Croon, “Adaptive
+Incremental Nonlinear Dynamic Inversion for Attitude Control of
+Micro Air Vehicles,” Journal of Guidance, Control, and Dynamics,
+vol. 39, no. 3, pp. 450–461, Mar. 2016.
+[19] D. Zhang, A. Loquercio, X. Wu, A. Kumar, J. Malik, and M. W.
+Mueller, “Learning a Single Near-hover Position Controller for Vastly
+Different Quadcopters,” May 2023.
+[20] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov,
+“Proximal policy optimization algorithms,” arXiv preprint
+arXiv:1707.06347, 2017.
+[21] A. Raffin, A. Hill, A. Gleave, A. Kanervisto, M. Ernestus, and
+N. Dormann, “Stable-baselines3: Reliable reinforcement learning
+implementations,” Journal of Machine Learning Research, vol. 22,
+no. 268, pp. 1–8, 2021. [Online]. Available: http://jmlr.org/papers/
+v22/20-1364.html
+[22] I. Geles, L. Bauersfeld, A. Romero, J. Xing, and D. Scaramuzza,
+“Demonstrating agile flight from pixels without state estimation,”
+arXiv preprint arXiv:2406.12505, 2024.
+[23] RTOM Corporation, “Moongel damper pads,” https://rtom.com/
+moongel-damper-pad/, accessed: August 20, 2024.
+[24] S. F. ul Haq Gilani, M. H. bin Mohd Khir, R. Ibrahim,
+E. ul Hassan Kirmani, and S. I. ul Haq Gilani, “Modelling
+and development of a vibration-based electromagnetic energy
+harvester for industrial centrifugal pump application,” Microelectronics
+Journal, vol. 66, pp. 103–111, 2017. [Online]. Available: https:
+//www.sciencedirect.com/science/article/pii/S0026269216305948
+[25] J.-B. Caillau, O. Cots, J. Gergaud, P. Martinon, and S. Sed,
+“OptimalControl.jl: a Julia package to model and solve optimal control
+problems with ODE’s.” [Online]. Available: https://control-toolbox.
+org/OptimalControl.jl
+
+
