@@ -4,13 +4,16 @@ import rerun as rr
 from stable_baselines3 import PPO
 from scipy.spatial.transform import Rotation
 import numpy as np
+from pathlib import Path
 
 # init rerun
 rr.init("quadcopter_controller_validation", spawn=False)
 
+file_path = Path(__file__).parent
+
 def main():
-    model_path = '/home/miller/code/optimal_quad_control_RL/src/quad_controller_package/quad_controller/100000000.zip'
-    model = PPO.load(model_path)
+    model_path = file_path / '100000000.zip'
+    model = PPO.load(str(model_path))
     env = Quadcopter3DGates(num_envs=1, randomization=randomization_fixed_params_5inch)
     obs = env.reset()
     
