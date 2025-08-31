@@ -59,7 +59,7 @@ class QuadrotorEnv:
         def monitor_fn(context: Context) -> EventStatus:
             system = simulator.get_system()
             steps = simulator.get_num_steps_taken()
-            if steps > 5000:
+            if steps > 50000:
                 # TODO: add a wrapper around Drake's gym env helper to turn on the truncated flag
                 # currently there is no way of differentiating this from termination.
                 return EventStatus.ReachedTermination(system, 'over 5000 timesteps in episode')
