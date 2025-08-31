@@ -7,9 +7,8 @@ This script adapts the observation space from Drake to work with our trained con
 
 import numpy as np
 import matplotlib.pyplot as plt
-from drake.drake_quadrotor_env import QuadrotorEnv
+from drake_quadrotor_env import QuadrotorEnv
 from quad_controller_package.quad_controller import QuadController
-from trajectory_plotter import TrajectoryPlotter
 import time
 
 def drake_to_controller_observation(drake_state, target_pos=np.array([0, 0, 1]), next_gate_pos=np.array([1, 0, 1])):
