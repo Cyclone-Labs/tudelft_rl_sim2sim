@@ -5,7 +5,7 @@ from pydrake.all import (
     MeshcatVisualizer, EventStatus
 )
 from pydrake.gym._drake_gym_env import DrakeGymEnv
-from custom_quadrotor_plant import CustomQuadrotorPlant, CustomQuadrotorGeometry
+from drake.custom_quadrotor_plant import CustomQuadrotorPlant, CustomQuadrotorGeometry
 import numpy as np
 
 gate_locations = [

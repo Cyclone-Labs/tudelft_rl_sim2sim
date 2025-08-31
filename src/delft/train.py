@@ -6,8 +6,8 @@ from datetime import datetime
 from stable_baselines3.common.vec_env import VecMonitor
 
 # custom imports
-from quad_race_env import *
-from randomization import *
+from delft.quad_race_env import *
+from delft.randomization import *
 
 import argparse
 

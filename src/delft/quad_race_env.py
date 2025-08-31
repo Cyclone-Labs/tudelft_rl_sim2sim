@@ -146,7 +146,7 @@ start_pos = gate_pos[0] + np.array([0,-1.,0])
 
 class Quadcopter3DGates(VecEnv):
     def __init__(self,
-                 num_envs,
+                 num_envs: int,
                  randomization,
                  gates_pos=gate_pos,
                  gate_yaw=gate_yaw,
