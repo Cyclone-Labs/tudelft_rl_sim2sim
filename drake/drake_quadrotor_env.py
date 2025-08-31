@@ -5,7 +5,7 @@ from pydrake.all import (
     MeshcatVisualizer, EventStatus
 )
 from pydrake.gym._drake_gym_env import DrakeGymEnv
-from custom_quadrotor_plant import CustomQuadrotorPlant, CustomQuadrotorGeometry
+from drake.custom_quadrotor_plant import CustomQuadrotorPlant, CustomQuadrotorGeometry
 import numpy as np
 
 gate_locations = [
@@ -64,10 +64,11 @@ class QuadrotorEnv:
                 # currently there is no way of differentiating this from termination.
                 return EventStatus.ReachedTermination(system, 'over 5000 timesteps in episode')
             state = system.get_output_port(0).Eval(context)
-            if np.linalg.norm(state[:3]) > 3:
-                return EventStatus.ReachedTermination(system, 'too far from origin')
-            if state[3]<-1:
-                return EventStatus.ReachedTermination(system, 'height too low')
+            # Removed distance termination - let the racing controller fly freely!
+            # if np.linalg.norm(state[:3]) > 3:
+            #     return EventStatus.ReachedTermination(system, 'too far from origin')
+            if state[2] < -5:  # Only terminate if it crashes into the ground (z < -5m)
+                return EventStatus.ReachedTermination(system, 'crashed into ground')
             return EventStatus.DidNothing()
 
         simulator.set_monitor(monitor_fn)

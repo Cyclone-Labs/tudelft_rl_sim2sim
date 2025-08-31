@@ -7,8 +7,9 @@ This script adapts the observation space from Drake to work with our trained con
 
 import numpy as np
 import matplotlib.pyplot as plt
-from drake_quadrotor_env import QuadrotorEnv
+from drake.drake_quadrotor_env import QuadrotorEnv
 from quad_controller_package.quad_controller import QuadController
+from trajectory_plotter import TrajectoryPlotter
 import time
 
 def drake_to_controller_observation(drake_state, target_pos=np.array([0, 0, 1]), next_gate_pos=np.array([1, 0, 1])):
@@ -87,12 +88,13 @@ def run_controller_test():
     print("   Open this URL in your browser to see the 3D visualization")
     print("   You'll be prompted to press Enter after opening the visualization")
     
+    # Note: Racing controller was trained at z=-1.5m, but let's try hovering first
     target_position = np.array([0, 0, 1])  # Hover at 1m height
     target_velocity = np.zeros(3)
     env = QuadrotorEnv.build(meshcat=meshcat, 
                             target_position=target_position,
                             target_velocity=target_velocity,
-                            realtime_rate=0.5,  # Slower for better visualization
+                            realtime_rate=0.1,  # Very slow for better visualization
                             drone_type="5inch")  # Use 5-inch racing quad parameters
     
     print("Drake environment created with visualization")

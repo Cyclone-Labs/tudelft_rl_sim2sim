@@ -8,7 +8,6 @@ from stable_baselines3.common.vec_env import VecMonitor
 # custom imports
 from quad_race_env import *
 from randomization import *
-from quadcopter_animation import animation
 
 import argparse
 
