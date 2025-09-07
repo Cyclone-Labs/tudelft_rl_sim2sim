@@ -18,7 +18,7 @@ file_path = Path(__file__).parent
 def main():
     model_path = file_path / '100000000'
     model = PPO.load(str(model_path))
-    env = Quadcopter3DGates(num_envs=1, randomization=randomization_fixed_params_5inch)
+    env = Quadcopter3DGates(num_envs=1, randomization=randomization_fixed_params_5inch, initialize_at_random_gates=False)
     obs = env.reset()
     
     trajectory_points = []

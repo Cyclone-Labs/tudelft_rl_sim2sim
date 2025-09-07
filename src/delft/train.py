@@ -226,7 +226,7 @@ for i in range(100):
     
 # TRAINING
 # training loop saves model every 10 policy rollouts and saves a video animation
-def train(model, test_env, log_name, n=int(5e8)):
+def train(model, test_env, log_name, n=int(1e8)):
     # save every 10 policy rollouts
     TIMESTEPS = model.n_steps*env.num_envs*10
     while model.num_timesteps < n:

@@ -186,7 +186,7 @@ class Quadcopter3DGates(VecEnv):
                  gates_ahead=1,
                  pause_if_collision=False,
                  motor_limit=1.0,
-                 initialize_at_random_gates=False,
+                 initialize_at_random_gates=True,
                  num_state_history=0,
                  num_action_history=0,
                  history_step_size=1,
