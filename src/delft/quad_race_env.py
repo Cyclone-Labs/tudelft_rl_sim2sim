@@ -130,6 +130,8 @@ from gymnasium import spaces
 from stable_baselines3.common.vec_env import VecEnv
 
 # DEFINE RACE TRACK
+#         TU Delft Path
+'''
 r = 1.5
 gate_pos = np.array([
     [ r,  -r, -1.5],
@@ -143,6 +145,36 @@ gate_pos = np.array([
 ])
 gate_yaw = np.array([1,2,1,0,-1,-2,-1,0])*np.pi/2
 start_pos = gate_pos[0] + np.array([0,-1.,0])
+'''
+#     FULL A2RL Path
+#r = 1.5
+gate_pos = np.array([
+    [ 13.5 , 6. , -6.2],
+    [ 11.  , 14., -6.2],
+    [ 6.   , 22., -6.2],
+    [ 11.  , 30., -6.2],
+    [ 11.  , 30., -4.1],
+    [ 19.  , 34., -6.2],
+    [ 27.  , 30., -6.2],
+    [ 32.  , 22., -6.2],
+    [ 29.  , 14., -6.2],
+    [ 30.  , 6. , -6.2],
+    [ 17.  , 18., -6.2],
+    [ 13.5 , 6. , -4.1]
+])
+gate_yaw = np.array([7/12,
+                     1/3,
+                     2/3,
+                     1/6,
+                     1/6,
+                     0,
+                     -1/6,
+                     -1/2,
+                     -5/12,
+                     -7/12,
+                     1,
+                     -5/12])*np.pi
+start_pos = gate_pos[0] + np.array([1.,-3.,0])
 
 class Quadcopter3DGates(VecEnv):
     def __init__(self,
@@ -154,7 +186,7 @@ class Quadcopter3DGates(VecEnv):
                  gates_ahead=1,
                  pause_if_collision=False,
                  motor_limit=1.0,
-                 initialize_at_random_gates=True,
+                 initialize_at_random_gates=False,
                  num_state_history=0,
                  num_action_history=0,
                  history_step_size=1,
@@ -261,7 +293,7 @@ class Quadcopter3DGates(VecEnv):
         self.action_hist = np.zeros((num_envs,num_hist,4), dtype=np.float32)
 
         # Define any other environment-specific parameters
-        self.max_steps = 1200      # Maximum number of steps in an episode
+        self.max_steps = 5000      # Maximum number of steps in an episode
         self.dt = np.float32(0.01) # Time step duration
 
         self.step_counts = np.zeros(num_envs, dtype=int)
@@ -273,6 +305,11 @@ class Quadcopter3DGates(VecEnv):
         self.update_states = self.update_states_gate
         
         self.pause = False
+
+        self.dones_report = None
+        self.gate_dot_product_old = None
+        self.gate_dot_product_new = None
+        self.gate_passed_bool = None
     
     def reset_seed(self):
         if self.seed is not None:
@@ -434,7 +471,7 @@ class Quadcopter3DGates(VecEnv):
         action_penalty = 0.0*np.linalg.norm((self.actions+1)/2, axis=1)
         action_penalty_delta = 0.001*np.linalg.norm((self.actions-self.prev_actions), axis=1)
 
-        prog_rewards = d2g_old - d2g_new
+        prog_rewards = 10.0 * (d2g_old - d2g_new)
         # max_speed = 12.0
         # cap progress rewards to be less than max_speed*dt
         # prog_rewards[prog_rewards > max_speed*self.dt] = max_speed*self.dt
@@ -452,19 +489,23 @@ class Quadcopter3DGates(VecEnv):
         gate_passed = passed_gate_plane & np.all(np.abs(pos_new - pos_gate)<gate_size/2, axis=1)
         gate_collision = passed_gate_plane & np.any(np.abs(pos_new - pos_gate)>gate_size/2, axis=1)
         
+        self.gate_dot_product_old = pos_old_projected
+        self.gate_dot_product_new = pos_new_projected
+        self.gate_passed_bool = gate_passed
+        
         # Gate reward + dist penalty
         # rewards[gate_passed] = 1 #10 - 10*d2g_new[gate_passed]
         
         # Gate collision penalty
-        # rewards[gate_collision] = -10
+        rewards[gate_collision] = -10
 
         # Ground collision penalty (z > 0)
         ground_collision = new_states[:,2] > 0
         rewards[ground_collision] = -10
         
         # Check out of bounds
-        out_of_bounds = np.any(np.abs(new_states[:,0:2]) > 5, axis=1)          # edges of the grid
-        out_of_bounds |= new_states[:,2] < -7                                  # max height (z-axis point down)
+        out_of_bounds = np.any(np.abs(new_states[:,0:2]) > 50, axis=1)          # edges of the grid
+        out_of_bounds |= new_states[:,2] < -7.5                                  # max height (z-axis point down)
         out_of_bounds |= np.any(np.abs(new_states[:,9:12]) > 1000, axis=1)     # prevent numerical issues
         rewards[out_of_bounds] = -10
         
@@ -479,10 +520,13 @@ class Quadcopter3DGates(VecEnv):
         # self.final_gate_passed = self.target_gates >= self.num_gates
 
         # give reward for passing final gate
-        rewards[self.final_gate_passed] = 10
+        # rewards[self.final_gate_passed] = 10
         
         # Check if the episode is done
         dones = max_steps_reached | ground_collision | out_of_bounds | gate_collision  #| self.final_gate_passed
+
+        self.dones_report = [max_steps_reached , ground_collision , out_of_bounds , gate_collision]
+        
         self.dones = dones
         
         # Pause if collision
@@ -542,3 +586,9 @@ class Quadcopter3DGates(VecEnv):
         # Rescale actions to [0,1] for rendering
         action_dict = dict(zip(['u1','u2','u3','u4'], (np.array(self.actions.T)+1)/2))
         return {**state_dict, **action_dict}
+    
+    def return_dones_report(self):
+        return self.dones_report
+    
+    def return_gate_info(self):
+        return self.gate_dot_product_old,self.gate_dot_product_new,self.gate_passed_bool

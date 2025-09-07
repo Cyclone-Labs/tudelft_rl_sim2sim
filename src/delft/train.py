@@ -6,8 +6,8 @@ from datetime import datetime
 from stable_baselines3.common.vec_env import VecMonitor
 
 # custom imports
-from delft.quad_race_env import *
-from delft.randomization import *
+from quad_race_env import *
+from randomization import *
 
 import argparse
 
@@ -61,19 +61,33 @@ print(f"Randomization: {args.randomization}")
 
 
 # DEFINE RACE TRACK
-r = 1.5
 gate_pos = np.array([
-    [ r,  -r, -1.5],
-    [ 0,   0, -1.5],
-    [-r,   r, -1.5],
-    [ 0, 2*r, -1.5],
-    [ r,   r, -1.5],
-    [ 0,   0, -1.5],
-    [-r,  -r, -1.5],
-    [ 0,-2*r, -1.5]
+    [ 13.5 , 6. , -6.2],
+    [ 11.  , 14., -6.2],
+    [ 6.   , 22., -6.2],
+    [ 11.  , 30., -6.2],
+    [ 11.  , 30., -4.1],
+    [ 19.  , 34., -6.2],
+    [ 27.  , 30., -6.2],
+    [ 32.  , 22., -6.2],
+    [ 29.  , 14., -6.2],
+    [ 30.  , 6. , -6.2],
+    [ 17.  , 18., -6.2],
+    [ 13.5 , 6. , -4.1]
 ])
-gate_yaw = np.array([1,2,1,0,-1,-2,-1,0])*np.pi/2
-start_pos = gate_pos[0] + np.array([0,-1.,0])
+gate_yaw = np.array([7/12,
+                     1/3,
+                     2/3,
+                     1/6,
+                     1/6,
+                     0,
+                     -1/6,
+                     -1/2,
+                     -5/12,
+                     -7/12,
+                     1,
+                     -5/12])*np.pi
+start_pos = gate_pos[0] + np.array([1.,-3.,0])
 
 # SETUP LOGGING
 models_dir = 'models/'+args.session_name
@@ -212,7 +226,7 @@ for i in range(100):
     
 # TRAINING
 # training loop saves model every 10 policy rollouts and saves a video animation
-def train(model, test_env, log_name, n=int(1e8)):
+def train(model, test_env, log_name, n=int(5e8)):
     # save every 10 policy rollouts
     TIMESTEPS = model.n_steps*env.num_envs*10
     while model.num_timesteps < n:
