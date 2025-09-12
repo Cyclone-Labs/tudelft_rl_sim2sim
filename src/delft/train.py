@@ -66,6 +66,7 @@ gate_pos = np.array([
     [ 11.  , 14., -6.2],
     [ 6.   , 22., -6.2],
     [ 11.  , 30., -6.2],
+    [ 11. - 2.1*np.cos(np.pi/3.), 30.+ 2.1*np.sin(np.pi/3.), -5.1],
     [ 11.  , 30., -4.1],
     [ 19.  , 34., -6.2],
     [ 27.  , 30., -6.2],
@@ -79,6 +80,7 @@ gate_yaw = np.array([7/12,
                      1/3,
                      2/3,
                      1/6,
+                     -5/6,
                      1/6,
                      0,
                      -1/6,
@@ -139,7 +141,8 @@ env = Quadcopter3DGates(
     num_action_history=args.action_history,
     history_step_size=args.history_step_size,
     param_input=args.param_input,
-    param_input_noise=args.param_input_noise
+    param_input_noise=args.param_input_noise,
+    initialize_at_random_gates=True
 )
 test_env = Quadcopter3DGates(
     num_envs=1,
@@ -152,7 +155,8 @@ test_env = Quadcopter3DGates(
     num_action_history=args.action_history,
     history_step_size=args.history_step_size,
     param_input=args.param_input,
-    param_input_noise=args.param_input_noise
+    param_input_noise=args.param_input_noise,
+    initialize_at_random_gates=True
 )
 
 # Wrap the environment in a Monitor wrapper

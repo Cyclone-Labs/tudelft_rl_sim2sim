@@ -153,6 +153,7 @@ gate_pos = np.array([
     [ 11.  , 14., -6.2],
     [ 6.   , 22., -6.2],
     [ 11.  , 30., -6.2],
+    [ 11. - 2.1*np.cos(np.pi/3.), 30.+ 2.1*np.sin(np.pi/3.), -5.1],
     [ 11.  , 30., -4.1],
     [ 19.  , 34., -6.2],
     [ 27.  , 30., -6.2],
@@ -166,6 +167,7 @@ gate_yaw = np.array([7/12,
                      1/3,
                      2/3,
                      1/6,
+                     -5/6,
                      1/6,
                      0,
                      -1/6,
@@ -310,7 +312,7 @@ class Quadcopter3DGates(VecEnv):
         self.gate_dot_product_old = None
         self.gate_dot_product_new = None
         self.gate_passed_bool = None
-    
+
     def reset_seed(self):
         if self.seed is not None:
             np.random.seed(self.seed)
@@ -467,7 +469,7 @@ class Quadcopter3DGates(VecEnv):
         d2g_old = np.linalg.norm(pos_old - pos_gate, axis=1)
         d2g_new = np.linalg.norm(pos_new - pos_gate, axis=1)
         rat_penalty = 0.001*np.linalg.norm(new_states[:,9:12], axis=1)
-        angle_penalty = 0.0*np.linalg.norm(new_states[:,6:8], axis=1)
+        angle_penalty = 0.00*np.linalg.norm(new_states[:,6:8], axis=1)
         action_penalty = 0.0*np.linalg.norm((self.actions+1)/2, axis=1)
         action_penalty_delta = 0.001*np.linalg.norm((self.actions-self.prev_actions), axis=1)
 
@@ -476,7 +478,7 @@ class Quadcopter3DGates(VecEnv):
         # cap progress rewards to be less than max_speed*dt
         # prog_rewards[prog_rewards > max_speed*self.dt] = max_speed*self.dt
         
-        # rewards = (d2g_old - d2g_new) - rat_penalty - angle_penalty
+        # rewards = prog_rewards - rat_penalty - np.abs(angle_penalty)
         rewards = prog_rewards - rat_penalty #- action_penalty - action_penalty_delta
         
         # Gate passing/collision
@@ -485,16 +487,17 @@ class Quadcopter3DGates(VecEnv):
         pos_old_projected = (pos_old[:,0]-pos_gate[:,0])*normal[:,0] + (pos_old[:,1]-pos_gate[:,1])*normal[:,1]
         pos_new_projected = (pos_new[:,0]-pos_gate[:,0])*normal[:,0] + (pos_new[:,1]-pos_gate[:,1])*normal[:,1]
         passed_gate_plane = (pos_old_projected < 0) & (pos_new_projected > 0)
+        passed_gate_plane_rev = (pos_old_projected > 0) & (pos_new_projected < 0)
         gate_size = 1.5
         gate_passed = passed_gate_plane & np.all(np.abs(pos_new - pos_gate)<gate_size/2, axis=1)
-        gate_collision = passed_gate_plane & np.any(np.abs(pos_new - pos_gate)>gate_size/2, axis=1)
+        gate_collision = passed_gate_plane & np.any(np.abs(pos_new - pos_gate)>gate_size/2, axis=1) | passed_gate_plane_rev
         
         self.gate_dot_product_old = pos_old_projected
         self.gate_dot_product_new = pos_new_projected
         self.gate_passed_bool = gate_passed
         
         # Gate reward + dist penalty
-        # rewards[gate_passed] = 1 #10 - 10*d2g_new[gate_passed]
+        rewards[gate_passed] += 5 #10 - 10*d2g_new[gate_passed]
         
         # Gate collision penalty
         rewards[gate_collision] = -10

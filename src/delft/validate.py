@@ -26,7 +26,7 @@ def main():
 
     exitCondition = False
 
-    for _ in range(3500):
+    for _ in range(5000):
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
         
@@ -35,13 +35,30 @@ def main():
         drone_velocity = env.world_states[0, 3:6]  # [vx, vy, vz] in world frame
         drone_euler = env.world_states[0, 6:9]     # [phi, theta, psi] in world frame
         
+        rr.log(
+                'drone/drone_model',
+                rr.Transform3D(
+                    translation=drone_position,
+                    quaternion=Rotation.from_euler('xyz', drone_euler).as_quat()
+                    
+                )
+            )
+        rr.log(
+                'drone/drone_model',
+                rr.Asset3D(path=file_path / 'Drone.obj')
+            )
+        
         # Log drone transform using world coordinates
         rr.log('drone/transform', 
                rr.Transform3D(
                    translation=drone_position,
-                   mat3x3=Rotation.from_euler('XYZ', drone_euler).as_matrix(),
-                   axis_length=0.2
+                   mat3x3=Rotation.from_euler('xyz', drone_euler).as_matrix(),
+                   axis_length=1.2
                ))
+        
+        rr.log('drone/phi', rr.Scalars(drone_euler[0]))
+        rr.log('drone/theta', rr.Scalars(drone_euler[1]))
+        rr.log('drone/psi', rr.Scalars(drone_euler[2]))
         
         # Add to trajectory and log it
         trajectory_points.append(drone_position.copy())
