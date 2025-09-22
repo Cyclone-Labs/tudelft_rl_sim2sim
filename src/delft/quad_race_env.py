@@ -129,62 +129,14 @@ param_encoding = lambdify((Array(params),), Array([k_w_encoding, k_p_encoding, k
 from gymnasium import spaces
 from stable_baselines3.common.vec_env import VecEnv
 
-# DEFINE RACE TRACK
-#         TU Delft Path
-'''
-r = 1.5
-gate_pos = np.array([
-    [ r,  -r, -1.5],
-    [ 0,   0, -1.5],
-    [-r,   r, -1.5],
-    [ 0, 2*r, -1.5],
-    [ r,   r, -1.5],
-    [ 0,   0, -1.5],
-    [-r,  -r, -1.5],
-    [ 0,-2*r, -1.5]
-])
-gate_yaw = np.array([1,2,1,0,-1,-2,-1,0])*np.pi/2
-start_pos = gate_pos[0] + np.array([0,-1.,0])
-'''
-#     FULL A2RL Path
-#r = 1.5
-gate_pos = np.array([
-    [ 13.5 , 6. , -6.2],
-    [ 11.  , 14., -6.2],
-    [ 6.   , 22., -6.2],
-    [ 11.  , 30., -6.2],
-    [ 11. - 2.1*np.cos(np.pi/3.), 30.+ 2.1*np.sin(np.pi/3.), -5.1],
-    [ 11.  , 30., -4.1],
-    [ 19.  , 34., -6.2],
-    [ 27.  , 30., -6.2],
-    [ 32.  , 22., -6.2],
-    [ 29.  , 14., -6.2],
-    [ 30.  , 6. , -6.2],
-    [ 17.  , 18., -6.2],
-    [ 13.5 , 6. , -4.1]
-])
-gate_yaw = np.array([7/12,
-                     1/3,
-                     2/3,
-                     1/6,
-                     -5/6,
-                     1/6,
-                     0,
-                     -1/6,
-                     -1/2,
-                     -5/12,
-                     -7/12,
-                     1,
-                     -5/12])*np.pi
-start_pos = gate_pos[0] + np.array([1.,-3.,0])
 
 class Quadcopter3DGates(VecEnv):
     def __init__(self,
                  num_envs: int,
                  randomization,
-                 gates_pos=gate_pos,
-                 gate_yaw=gate_yaw,
-                 start_pos=start_pos,
+                 gates_pos,
+                 gate_yaw,
+                 start_pos,
                  gates_ahead=1,
                  pause_if_collision=False,
                  motor_limit=1.0,
@@ -309,9 +261,6 @@ class Quadcopter3DGates(VecEnv):
         self.pause = False
 
         self.dones_report = None
-        self.gate_dot_product_old = None
-        self.gate_dot_product_new = None
-        self.gate_passed_bool = None
 
     def reset_seed(self):
         if self.seed is not None:
@@ -462,6 +411,7 @@ class Quadcopter3DGates(VecEnv):
 
         pos_old = self.world_states[:,0:3]
         pos_new = new_states[:,0:3]
+        vel_new = new_states[:,3:6]
         pos_gate = self.gate_pos[self.target_gates%self.num_gates]
         yaw_gate = self.gate_yaw[self.target_gates%self.num_gates]
 
@@ -479,25 +429,66 @@ class Quadcopter3DGates(VecEnv):
         # prog_rewards[prog_rewards > max_speed*self.dt] = max_speed*self.dt
         
         # rewards = prog_rewards - rat_penalty - np.abs(angle_penalty)
-        rewards = prog_rewards - rat_penalty #- action_penalty - action_penalty_delta
+         #- action_penalty - action_penalty_delta
         
         # Gate passing/collision
-        normal = np.array([np.cos(yaw_gate), np.sin(yaw_gate)]).T
+        #normal = np.array([cos_yaw, sin_yaw]).T
+
         # dot product of normal and position vector over axis 1
-        pos_old_projected = (pos_old[:,0]-pos_gate[:,0])*normal[:,0] + (pos_old[:,1]-pos_gate[:,1])*normal[:,1]
-        pos_new_projected = (pos_new[:,0]-pos_gate[:,0])*normal[:,0] + (pos_new[:,1]-pos_gate[:,1])*normal[:,1]
-        passed_gate_plane = (pos_old_projected < 0) & (pos_new_projected > 0)
-        passed_gate_plane_rev = (pos_old_projected > 0) & (pos_new_projected < 0)
-        gate_size = 1.5
-        gate_passed = passed_gate_plane & np.all(np.abs(pos_new - pos_gate)<gate_size/2, axis=1)
-        gate_collision = passed_gate_plane & np.any(np.abs(pos_new - pos_gate)>gate_size/2, axis=1) | passed_gate_plane_rev
+        # dot product between drones pos and gate normal vector in gate frame
+        # pos_old_gate_dot = (pos_old[:,0]-pos_gate[:,0])*normal[:,0] + (pos_old[:,1]-pos_gate[:,1])*normal[:,1] 
+        # pos_new_gate_dot = (pos_new[:,0]-pos_gate[:,0])*normal[:,0] + (pos_new[:,1]-pos_gate[:,1])*normal[:,1]
+
+        # passed_gate_plane = (pos_old_gate_dot < 0) & (pos_new_gate_dot > 0)
+        # passed_gate_plane_rev = (pos_old_gate_dot > 0) & (pos_new_gate_dot < 0)
         
-        self.gate_dot_product_old = pos_old_projected
-        self.gate_dot_product_new = pos_new_projected
-        self.gate_passed_bool = gate_passed
+        gate_hole = 1.5
+        gate_outside = 2.7
+
+        cos_yaw = np.cos(yaw_gate)
+        sin_yaw = np.sin(yaw_gate)
+        pos_old_relative = pos_old - pos_gate
+        pos_new_relative = pos_new - pos_gate
         
+        # Rotation matrix from world to gate frame
+        # Each row is a gate frame axis expressed in world coordinates
+        R_world_to_gate = np.array([
+            [cos_yaw , sin_yaw, np.zeros_like(cos_yaw)],      # x_gate in world
+            [-sin_yaw, cos_yaw, np.zeros_like(cos_yaw)],     # y_gate in world  
+            [np.zeros_like(cos_yaw), np.zeros_like(cos_yaw), np.ones_like(cos_yaw)]  # z_gate in world
+        ]).transpose(2, 0, 1)  # Shape: (N, 3, 3)
+        
+        # Transform positions: pos_gate = R_world_to_gate @ pos_relative
+            # X-axis points inline with gate normal vector
+        pos_old_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_old_relative)
+        pos_new_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_new_relative)
+
+        passed_gate_plane = (pos_old_gate_frame[:,0] < 0) & (pos_new_gate_frame[:,0] >= 0)
+        passed_gate_plane_rev = (pos_old_gate_frame[:,0] > 0) & (pos_new_gate_frame[:,0] <= 0)
+
+        within_gate_hole = (np.abs(pos_new_gate_frame[:, 1]) < gate_hole/2)    & (np.abs(pos_new_gate_frame[:, 2]) < gate_hole/2)
+        within_gate_size = (np.abs(pos_new_gate_frame[:, 1]) < gate_outside/2) & (np.abs(pos_new_gate_frame[:, 2]) < gate_outside/2)
+
+        gate_passed = passed_gate_plane & within_gate_hole 
+        gate_collision = (passed_gate_plane & ~within_gate_hole) | (passed_gate_plane_rev & within_gate_size)
+
+        rewards = prog_rewards - rat_penalty
+
+        # True when you are in front of the gate and in a rectangular volume in front of the gate
+            # This is to give the agent negative rewards in the front of the gate
+            # while still encouraging the agent to move away from directly in 
+            # front of the gate
+            #
+            # Previously when given negative rewards when in front of the gate the agent would either:
+            #   1. crash into the gate as the -10 for crashing was better than staying in 
+            #      front of the gate and accumulating negative rewards
+            #   2. would never find its way all the way around the side of the gate
+
+        in_gate_deadzone = (pos_new_gate_frame[:,0] > 0) & (pos_new_gate_frame[:,1] > gate_outside) & (pos_new_gate_frame[:,2] > gate_outside)
+        rewards[in_gate_deadzone] = -0.1
+
         # Gate reward + dist penalty
-        rewards[gate_passed] += 5 #10 - 10*d2g_new[gate_passed]
+        rewards[gate_passed] += 10 #10 - 10*d2g_new[gate_passed]
         
         # Gate collision penalty
         rewards[gate_collision] = -10
@@ -592,6 +583,3 @@ class Quadcopter3DGates(VecEnv):
     
     def return_dones_report(self):
         return self.dones_report
-    
-    def return_gate_info(self):
-        return self.gate_dot_product_old,self.gate_dot_product_new,self.gate_passed_bool

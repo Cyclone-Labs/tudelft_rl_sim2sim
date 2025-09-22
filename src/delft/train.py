@@ -4,10 +4,13 @@ import sys
 from stable_baselines3 import PPO
 from datetime import datetime
 from stable_baselines3.common.vec_env import VecMonitor
+import numpy as np
+import subprocess
 
 # custom imports
 from quad_race_env import *
 from randomization import *
+#from validate import run_validation
 
 import argparse
 
@@ -43,6 +46,9 @@ parser.add_argument('--param_input_noise', type=float, default=0.0, help='Parame
 # Randomization (randomized, fixed_5inch, fixed_3inch)
 parser.add_argument('--randomization', type=str, default='randomized', help='Randomization (randomized, fixed_5inch, fixed_3inch)')
 
+# Load Model
+parser.add_argument('--load_model', type=str, default=None, help='Path to existing model to continue training from (e.g., models/session1/model_name/100000000.zip)')
+
 # Parse the arguments
 args = parser.parse_args()
 
@@ -59,9 +65,26 @@ print(f"Parameter input: {args.param_input}")
 print(f"Parameter input noise: {args.param_input_noise}")
 print(f"Randomization: {args.randomization}")
 
+# DEFINE RACE TRACK
+#         TU Delft Path
+'''
+r = 1.5
+gate_pos = np.array([
+    [ r,  -r, -1.5],
+    [ 0,   0, -1.5],
+    [-r,   r, -1.5],
+    [ 0, 2*r, -1.5],
+    [ r,   r, -1.5],
+    [ 0,   0, -1.5],
+    [-r,  -r, -1.5],
+    [ 0,-2*r, -1.5]
+])
+gate_yaw = np.array([1,2,1,0,-1,-2,-1,0])*np.pi/2
+start_pos = gate_pos[0] + np.array([0,-1.,0])
+'''
 
 # DEFINE RACE TRACK
-gate_pos = np.array([
+easy_pos = np.array([
     [ 13.5 , 6. , -6.2],
     [ 11.  , 14., -6.2],
     [ 6.   , 22., -6.2],
@@ -76,7 +99,8 @@ gate_pos = np.array([
     [ 17.  , 18., -6.2],
     [ 13.5 , 6. , -4.1]
 ])
-gate_yaw = np.array([7/12,
+easy_yaw = np.array([
+                     7/12,
                      1/3,
                      2/3,
                      1/6,
@@ -89,7 +113,22 @@ gate_yaw = np.array([7/12,
                      -7/12,
                      1,
                      -5/12])*np.pi
-start_pos = gate_pos[0] + np.array([1.,-3.,0])
+easy_start = easy_pos[0] + np.array([1.,-3.,0])
+
+hard_pos = np.delete(easy_pos, 4, axis=0)
+hard_yaw = np.delete(easy_yaw, 4)
+hard_start = hard_pos[0] + np.array([1.,-3.,0])
+
+fly_around_pos = np.array([
+    [ 13.5 , 6. , -6.2],
+    [ 11.  , 14., -6.2]
+])
+fly_around_yaw = np.array([
+                     7/12,
+                     1/3
+                     ])*np.pi
+fly_around_start = fly_around_pos[0] + np.array([1.,-3.,0])
+
 
 # SETUP LOGGING
 models_dir = 'models/'+args.session_name
@@ -130,52 +169,51 @@ else:
     # kill the process
     sys.exit()
 
-env = Quadcopter3DGates(
-    num_envs=100,
-    gates_pos=gate_pos,
-    gate_yaw=gate_yaw,
-    start_pos=start_pos,
-    randomization=randomization,
-    gates_ahead=1, 
-    num_state_history=args.state_history,
-    num_action_history=args.action_history,
-    history_step_size=args.history_step_size,
-    param_input=args.param_input,
-    param_input_noise=args.param_input_noise,
-    initialize_at_random_gates=True
-)
-test_env = Quadcopter3DGates(
-    num_envs=1,
-    gates_pos=gate_pos,
-    gate_yaw=gate_yaw,
-    start_pos=start_pos,
-    randomization=randomization,
-    gates_ahead=1,
-    num_state_history=args.state_history,
-    num_action_history=args.action_history,
-    history_step_size=args.history_step_size,
-    param_input=args.param_input,
-    param_input_noise=args.param_input_noise,
-    initialize_at_random_gates=True
-)
+def create_env(gate_pos, gate_yaw, start_pos, num_envs=100):
 
-# Wrap the environment in a Monitor wrapper
-env = VecMonitor(env)
+    env = Quadcopter3DGates(
+        num_envs=num_envs,
+        gates_pos=gate_pos,
+        gate_yaw=gate_yaw,
+        start_pos=start_pos,
+        randomization=randomization,
+        gates_ahead=1, 
+        num_state_history=args.state_history,
+        num_action_history=args.action_history,
+        history_step_size=args.history_step_size,
+        param_input=args.param_input,
+        param_input_noise=args.param_input_noise,
+        initialize_at_random_gates=True
+    )
+    return VecMonitor(env)
 
+test_env = create_env(gate_pos=easy_pos, gate_yaw=easy_yaw, start_pos=easy_start, num_envs=1)
+
+easy_env = create_env(gate_pos=easy_pos, gate_yaw=easy_yaw, start_pos=easy_start)
+hard_env = create_env(gate_pos=hard_pos, gate_yaw=hard_yaw, start_pos=hard_start)
+fly_around_env = create_env(gate_pos=fly_around_pos, gate_yaw=fly_around_yaw, start_pos=fly_around_start)
 # MODEL DEFINITION
-# policy_kwargs = dict(activation_fn=torch.nn.ReLU, net_arch=[dict(pi=[64,64], vf=[64,64])], log_std_init = 0)
+
 policy_kwargs = dict(activation_fn=torch.nn.ReLU, net_arch=[dict(pi=args.pi, vf=args.vf)], log_std_init = 0)
-model = PPO(
-    "MlpPolicy",
-    env,
-    policy_kwargs=policy_kwargs,
-    verbose=0,
-    tensorboard_log=log_dir,
-    n_steps=1000,
-    batch_size=5000,
-    n_epochs=10,
-    gamma=0.999
-)
+
+if args.load_model:
+    print(f"Loading existing model from: {args.load_model}")
+    model = PPO.load(args.load_model, env=hard_env) # Uses hard env
+    model.ent_coef = 0.005
+    print("Model loaded successfully!")
+else:
+    model = PPO(
+        "MlpPolicy",
+        hard_env,
+        policy_kwargs=policy_kwargs,
+        verbose=0,
+        tensorboard_log=log_dir,
+        n_steps=1000,
+        batch_size=5000,
+        n_epochs=10,
+        gamma=0.999,
+        ent_coef = 0.01
+    )
 
 print("Model created with policy architecture", args.pi, "and value function architecture", args.vf)
 print("-----------------------------------")
@@ -185,68 +223,37 @@ print("Logging to", log_dir)
 print("Saving models to", models_dir)
 print("Saving videos to", video_log_dir)
 
-# ANIMATION FUNCTION
-# def animate_policy(model, env, deterministic=False, log_times=False, print_vel=False, log=None, **kwargs):
-#     env.reset()
-#     def run():
-#         actions, _ = model.predict(env.states, deterministic=deterministic)
-        
-#         # print('actions=', actions)
-#         # print('states=', env.states)
-#         # print('')
-
-#         states, rewards, dones, infos = env.step(actions)
-#         if log != None:
-#             log(states)
-#         if print_vel:
-#             # compute mean velocity
-#             vels = env.world_states[:,3:6]
-#             mean_vel = np.linalg.norm(vels, axis=1).mean()
-#             print(mean_vel)
-#         if log_times:
-#             if rewards[0] == 10:
-#                 print(env.step_counts[0]*env.dt)
-        
-#         return env.render()
-#     animation.view(run, gate_pos=env.gate_pos, gate_yaw=env.gate_yaw, **kwargs)
-    
-# animate untrained policy (use this to set the recording camera position)
-# animate_policy(model, test_env)
-
 # TESTING
 test_env.reset()
 
 # do 100 steps and print state and action
 for i in range(100):
-    print('step', i)
-    num = test_env.num_state_history+1
-    state_len = int(len(test_env.states[0])/num)
-    for j in range(num):
-        print('state', j, '=', test_env.states[0][j*state_len:(j+1)*state_len])
-    actions, _ = model.predict(test_env.states, deterministic=True)
-    states, rewards, dones, infos = test_env.step(actions)
-    print('actions=', actions[0])
-    print('')
+    if i % 20 == 0:
+        print('step', i)
+        #num = test_env.num_state_history+1
+        #state_len = int(len(test_env.states[0])/num)
+        #for j in range(num):
+        #    print('state', j, '=', test_env.states[0][j*state_len:(j+1)*state_len])
+        actions, _ = model.predict(test_env.states, deterministic=True)
+        states, rewards, dones, infos = test_env.step(actions)
+        print('actions=', actions[0])
     
 # TRAINING
 # training loop saves model every 10 policy rollouts and saves a video animation
-def train(model, test_env, log_name, n=int(1e8)):
-    # save every 10 policy rollouts
-    TIMESTEPS = model.n_steps*env.num_envs*10
+def train(model, log_name, n=int(1e8)):
+    TIMESTEPS = model.n_steps*model.env.num_envs*10
+
     while model.num_timesteps < n:
+
         model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name=log_name)
         time_steps = model.num_timesteps
         # save model
         model.save(models_dir + '/' + log_name + '/' + str(time_steps))
         print('Model saved at', models_dir + '/' + log_name + '/' + str(time_steps))
-        # save policy animation
-        # animate_policy(
-        #     model,
-        #     test_env,
-        #     record_steps=1200,
-        #     record_file=video_log_dir + '/' + log_name + '/' + str(time_steps) + '.mp4',
-        #     show_window=False
-        # )
+
+        # show progress as model trains
+        #subprocess.Popen(['python', 'validate.py'])
+    
         
 
 # name = 'figure8_64_64_again!'
@@ -274,4 +281,4 @@ if os.path.exists(video_log_dir + '/' + name):
     shutil.rmtree(video_log_dir + '/' + name, ignore_errors=True)
 
 print("Training model", name)
-train(model, test_env, name)
+train(model, name)
