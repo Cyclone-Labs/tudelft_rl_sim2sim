@@ -424,23 +424,6 @@ class Quadcopter3DGates(VecEnv):
         action_penalty_delta = 0.001*np.linalg.norm((self.actions-self.prev_actions), axis=1)
 
         prog_rewards = 10.0 * (d2g_old - d2g_new)
-        # max_speed = 12.0
-        # cap progress rewards to be less than max_speed*dt
-        # prog_rewards[prog_rewards > max_speed*self.dt] = max_speed*self.dt
-        
-        # rewards = prog_rewards - rat_penalty - np.abs(angle_penalty)
-         #- action_penalty - action_penalty_delta
-        
-        # Gate passing/collision
-        #normal = np.array([cos_yaw, sin_yaw]).T
-
-        # dot product of normal and position vector over axis 1
-        # dot product between drones pos and gate normal vector in gate frame
-        # pos_old_gate_dot = (pos_old[:,0]-pos_gate[:,0])*normal[:,0] + (pos_old[:,1]-pos_gate[:,1])*normal[:,1] 
-        # pos_new_gate_dot = (pos_new[:,0]-pos_gate[:,0])*normal[:,0] + (pos_new[:,1]-pos_gate[:,1])*normal[:,1]
-
-        # passed_gate_plane = (pos_old_gate_dot < 0) & (pos_new_gate_dot > 0)
-        # passed_gate_plane_rev = (pos_old_gate_dot > 0) & (pos_new_gate_dot < 0)
         
         gate_hole = 1.5
         gate_outside = 2.7
@@ -459,7 +442,7 @@ class Quadcopter3DGates(VecEnv):
         ]).transpose(2, 0, 1)  # Shape: (N, 3, 3)
         
         # Transform positions: pos_gate = R_world_to_gate @ pos_relative
-            # X-axis points inline with gate normal vector
+            # Pos x-axis points inline with gate normal vector
         pos_old_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_old_relative)
         pos_new_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_new_relative)
 
@@ -473,16 +456,6 @@ class Quadcopter3DGates(VecEnv):
         gate_collision = (passed_gate_plane & ~within_gate_hole) | (passed_gate_plane_rev & within_gate_size)
 
         rewards = prog_rewards - rat_penalty
-
-        # True when you are in front of the gate and in a rectangular volume in front of the gate
-            # This is to give the agent negative rewards in the front of the gate
-            # while still encouraging the agent to move away from directly in 
-            # front of the gate
-            #
-            # Previously when given negative rewards when in front of the gate the agent would either:
-            #   1. crash into the gate as the -10 for crashing was better than staying in 
-            #      front of the gate and accumulating negative rewards
-            #   2. would never find its way all the way around the side of the gate
 
         in_gate_deadzone = (pos_new_gate_frame[:,0] > 0) & (pos_new_gate_frame[:,1] > gate_outside) & (pos_new_gate_frame[:,2] > gate_outside)
         rewards[in_gate_deadzone] = -0.1
