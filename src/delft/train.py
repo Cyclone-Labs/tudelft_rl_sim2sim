@@ -119,16 +119,6 @@ hard_pos = np.delete(easy_pos, 4, axis=0)
 hard_yaw = np.delete(easy_yaw, 4)
 hard_start = hard_pos[0] + np.array([1.,-3.,0])
 
-fly_around_pos = np.array([
-    [ 13.5 , 6. , -6.2],
-    [ 11.  , 14., -6.2]
-])
-fly_around_yaw = np.array([
-                     7/12,
-                     1/3
-                     ])*np.pi
-fly_around_start = fly_around_pos[0] + np.array([1.,-3.,0])
-
 
 # SETUP LOGGING
 models_dir = 'models/'+args.session_name
@@ -191,7 +181,6 @@ test_env = create_env(gate_pos=easy_pos, gate_yaw=easy_yaw, start_pos=easy_start
 
 easy_env = create_env(gate_pos=easy_pos, gate_yaw=easy_yaw, start_pos=easy_start)
 hard_env = create_env(gate_pos=hard_pos, gate_yaw=hard_yaw, start_pos=hard_start)
-fly_around_env = create_env(gate_pos=fly_around_pos, gate_yaw=fly_around_yaw, start_pos=fly_around_start)
 # MODEL DEFINITION
 
 policy_kwargs = dict(activation_fn=torch.nn.ReLU, net_arch=[dict(pi=args.pi, vf=args.vf)], log_std_init = 0)
@@ -199,7 +188,7 @@ policy_kwargs = dict(activation_fn=torch.nn.ReLU, net_arch=[dict(pi=args.pi, vf=
 if args.load_model:
     print(f"Loading existing model from: {args.load_model}")
     model = PPO.load(args.load_model, env=hard_env) # Uses hard env
-    model.ent_coef = 0.005
+    model.ent_coef = 0.0
     print("Model loaded successfully!")
 else:
     model = PPO(
@@ -212,7 +201,7 @@ else:
         batch_size=5000,
         n_epochs=10,
         gamma=0.999,
-        ent_coef = 0.01
+        ent_coef = 0.0
     )
 
 print("Model created with policy architecture", args.pi, "and value function architecture", args.vf)
@@ -240,8 +229,9 @@ for i in range(100):
     
 # TRAINING
 # training loop saves model every 10 policy rollouts and saves a video animation
-def train(model, log_name, n=int(1e8)):
+def train(model, log_name, n=int(2e8)):
     TIMESTEPS = model.n_steps*model.env.num_envs*10
+    n += model.num_timesteps # updates traget for loading models
 
     while model.num_timesteps < n:
 

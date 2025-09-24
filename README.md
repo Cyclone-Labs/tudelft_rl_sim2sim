@@ -19,10 +19,11 @@ Right now this project is at the point where I've trained a model and verified i
 6. Run inference in drake: `uv run python test_controller_drake.py`
 7. Open localhost:7000 in a web browser to look at the visualization. Once you're ready to start it, go back to your terminal window and press enter to start the experiments
 
-
-# Running validation and looking at the visualization
-1. pip install rerun-sdk
-2. run src/delft/validate.py
-3. run `rerun` and open the generated rrd file
-
-It also should be possible to have validate.py open rerun directly instead of having to save/load the file, feel free to modify the code to do that.
+## Setup instructions (Delft Env)
+1. clone repo
+2. install `uv` (https://docs.astral.sh/uv/getting-started/installation/)
+3. set up a venv and download all the packages
+4. (optional) train a new model: `uv run python train.py general_session general_model --pi 64 64 64 --vf 64 64 64 --randomization randomized`
+5. (optional) add `--load_model model_relative_path` to continue training from a saved model
+7. run src/delft/validate.py by default the validation is run on the last file added to src/delft/models/general_session/general_model
+8. once the validation has run a rerun window will open automatically

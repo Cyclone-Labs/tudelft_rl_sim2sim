@@ -46,16 +46,6 @@ hard_pos = np.delete(easy_pos, 4, axis=0)
 hard_yaw = np.delete(easy_yaw, 4)
 hard_start = hard_pos[0] + np.array([1.,-3.,0])
 
-fly_around_pos = np.array([
-    [ 13.5 , 6. , -6.2],
-    [ 11.  , 14., -6.2]
-])
-fly_around_yaw = np.array([
-                     7/12,
-                     1/3
-                     ])*np.pi
-fly_around_start = fly_around_pos[0] + np.array([1.,-3.,0])
-
 # init rerun
 rr.init("quadcopter_controller_validation", spawn=False)
 
@@ -67,10 +57,10 @@ def main():
     try:
         most_recent_model = max(model_path.glob('*'), key=os.path.getmtime)
         print(f"Most recent file: {most_recent_model}")
+        model_path = most_recent_model
     except ValueError:
         print("No files found in the models folder")
-
-    model_path = most_recent_model
+        model_path = file_path / 'OptimizedModel'
 
     model = PPO.load(str(model_path))
     env = Quadcopter3DGates(num_envs=1, 

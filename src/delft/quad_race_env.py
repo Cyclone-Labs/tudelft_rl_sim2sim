@@ -424,46 +424,87 @@ class Quadcopter3DGates(VecEnv):
         action_penalty_delta = 0.001*np.linalg.norm((self.actions-self.prev_actions), axis=1)
 
         prog_rewards = 10.0 * (d2g_old - d2g_new)
+
+        time_penalty = 0.02
         
         gate_hole = 1.5
         gate_outside = 2.7
 
-        cos_yaw = np.cos(yaw_gate)
-        sin_yaw = np.sin(yaw_gate)
-        pos_old_relative = pos_old - pos_gate
-        pos_new_relative = pos_new - pos_gate
+        # Initialize collision flags
+        gate_passed = np.zeros(self.num_envs, dtype=bool)
+        gate_collision = np.zeros(self.num_envs, dtype=bool)
+        in_gate_deadzone = np.zeros(self.num_envs, dtype=bool)
+
+        # Get target gate indices and previous gate indices
+        target_gate_indices = self.target_gates % self.num_gates
+        previous_gate_indices = (self.target_gates - 1) % self.num_gates
+
+        # Gates to check: target gate and previous gate
+            # Target gate must be first
+        gates_to_check = [target_gate_indices, previous_gate_indices]
+
+        for gate_type_idx, gate_indices in enumerate(gates_to_check):
+            is_target_gate = (gate_type_idx == 0)
+            
+            # Get gate positions and orientations for all environments
+            gate_pos_current = self.gate_pos[gate_indices]
+            gate_yaw_current = self.gate_yaw[gate_indices]
+            
+            cos_yaw_current = np.cos(gate_yaw_current)
+            sin_yaw_current = np.sin(gate_yaw_current)
+            
+            pos_old_relative_current = pos_old - gate_pos_current
+            pos_new_relative_current = pos_new - gate_pos_current
+            
+            # Rotation matrix for current gates (vectorized for all environments)
+            R_world_to_gate_current = np.array([
+                [cos_yaw_current, sin_yaw_current, np.zeros_like(cos_yaw_current)],
+                [-sin_yaw_current, cos_yaw_current, np.zeros_like(cos_yaw_current)],
+                [np.zeros_like(cos_yaw_current), np.zeros_like(cos_yaw_current), np.ones_like(cos_yaw_current)]
+            ]).transpose(2, 0, 1)  # Shape: (N, 3, 3)
+            
+            # Transform positions to gate frame
+            pos_old_gate_frame_current = np.einsum('nij,nj->ni', R_world_to_gate_current, pos_old_relative_current)
+            pos_new_gate_frame_current = np.einsum('nij,nj->ni', R_world_to_gate_current, pos_new_relative_current)
+            
+            # Check if drone passed through gate plane
+            passed_gate_plane_current = (pos_old_gate_frame_current[:,0] < 0) & (pos_new_gate_frame_current[:,0] >= 0)
+            passed_gate_plane_rev_current = (pos_old_gate_frame_current[:,0] > 0) & (pos_new_gate_frame_current[:,0] <= 0)
+            
+            # Check if drone is within gate boundaries
+            within_gate_hole_current = (np.abs(pos_new_gate_frame_current[:, 1]) < gate_hole/2) & (np.abs(pos_new_gate_frame_current[:, 2]) < gate_hole/2)
+            within_gate_size_current = (np.abs(pos_new_gate_frame_current[:, 1]) < gate_outside/2) & (np.abs(pos_new_gate_frame_current[:, 2]) < gate_outside/2)
+            
+            # Gate passing only counts for target gate
+            if is_target_gate:
+                gate_passed = passed_gate_plane_current & within_gate_hole_current
+                
+                # Deadzone logic only applies to target gate
+                in_gate_deadzone = (pos_new_gate_frame_current[:,0] > 0) & (np.abs(pos_new_gate_frame_current[:,1]) < gate_outside/2) & (np.abs(pos_new_gate_frame_current[:,2]) < gate_outside/2)
+            
+            # Collision detection for both target and previous gate
+            # Collision occurs if:
+            # 1. Drone passed through gate plane but missed the hole
+            # 2. Drone passed through gate plane in reverse direction while within gate structure
+            gate_collision_current = (passed_gate_plane_current & ~within_gate_hole_current) | (passed_gate_plane_rev_current & within_gate_size_current)
+            
+            # Accumulate collisions (OR operation to catch collision with either gate)
+            gate_collision |= gate_collision_current
         
-        # Rotation matrix from world to gate frame
-        # Each row is a gate frame axis expressed in world coordinates
-        R_world_to_gate = np.array([
-            [cos_yaw , sin_yaw, np.zeros_like(cos_yaw)],      # x_gate in world
-            [-sin_yaw, cos_yaw, np.zeros_like(cos_yaw)],     # y_gate in world  
-            [np.zeros_like(cos_yaw), np.zeros_like(cos_yaw), np.ones_like(cos_yaw)]  # z_gate in world
-        ]).transpose(2, 0, 1)  # Shape: (N, 3, 3)
-        
-        # Transform positions: pos_gate = R_world_to_gate @ pos_relative
-            # Pos x-axis points inline with gate normal vector
-        pos_old_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_old_relative)
-        pos_new_gate_frame = np.einsum('nij,nj->ni', R_world_to_gate, pos_new_relative)
+        # Prevents collision when passing through stacked gates
+            #ie passing through top gate counts as collision through bottom
+        gate_collision[gate_passed] = False
 
-        passed_gate_plane = (pos_old_gate_frame[:,0] < 0) & (pos_new_gate_frame[:,0] >= 0)
-        passed_gate_plane_rev = (pos_old_gate_frame[:,0] > 0) & (pos_new_gate_frame[:,0] <= 0)
-
-        within_gate_hole = (np.abs(pos_new_gate_frame[:, 1]) < gate_hole/2)    & (np.abs(pos_new_gate_frame[:, 2]) < gate_hole/2)
-        within_gate_size = (np.abs(pos_new_gate_frame[:, 1]) < gate_outside/2) & (np.abs(pos_new_gate_frame[:, 2]) < gate_outside/2)
-
-        gate_passed = passed_gate_plane & within_gate_hole 
-        gate_collision = (passed_gate_plane & ~within_gate_hole) | (passed_gate_plane_rev & within_gate_size)
-
+        # Apply rewards
         rewards = prog_rewards - rat_penalty
-
-        in_gate_deadzone = (pos_new_gate_frame[:,0] > 0) & (pos_new_gate_frame[:,1] > gate_outside) & (pos_new_gate_frame[:,2] > gate_outside)
         rewards[in_gate_deadzone] = -0.1
 
-        # Gate reward + dist penalty
-        rewards[gate_passed] += 10 #10 - 10*d2g_new[gate_passed]
-        
-        # Gate collision penalty
+        rewards -= time_penalty
+
+        # Gate reward + dist penalty (only for target gate passing)
+        rewards[gate_passed] += 10
+
+        # Gate collision penalty (for either target or previous gate)
         rewards[gate_collision] = -10
 
         # Ground collision penalty (z > 0)
