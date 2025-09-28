@@ -156,7 +156,7 @@ def main():
 
         phi, theta, psi = drone_euler
 
-        rotation_quat = Rotation.from_euler('xyz', drone_euler, degrees=False).as_quat()
+        rotation_quat = Rotation.from_euler('xyz', drone_euler, degrees=False).inv().as_quat()
 
         rr.log(
             'drone/drone_model',
