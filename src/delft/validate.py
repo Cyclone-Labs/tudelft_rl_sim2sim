@@ -50,7 +50,61 @@ hard_start = hard_pos[0] + np.array([1.,-3.,0])
 rr.init("quadcopter_controller_validation", spawn=False)
 
 file_path = Path(__file__).parent
-   
+
+
+def test_rotation_conventions(drone_euler):
+    """Test different rotation conventions to see which matches the drone's actual orientation"""
+    
+    phi, theta, psi = drone_euler
+    
+    print(f"Drone Euler angles: phi={phi:.3f}, theta={theta:.3f}, psi={psi:.3f}")
+    
+    # Manually construct the rotation matrix as in the quadcopter dynamics
+    Rx = np.array([[1, 0, 0], 
+                   [0, np.cos(phi), -np.sin(phi)], 
+                   [0, np.sin(phi), np.cos(phi)]])
+    
+    Ry = np.array([[np.cos(theta), 0, np.sin(theta)], 
+                   [0, 1, 0], 
+                   [-np.sin(theta), 0, np.cos(theta)]])
+    
+    Rz = np.array([[np.cos(psi), -np.sin(psi), 0], 
+                   [np.sin(psi), np.cos(psi), 0], 
+                   [0, 0, 1]])
+    
+    # The rotation matrix from the dynamics: R = Rz*Ry*Rx
+    R_manual = Rz @ Ry @ Rx
+    
+    print("Manual rotation matrix (Rz*Ry*Rx):")
+    print(R_manual)
+    
+    # Test different scipy conventions
+    conventions = ['XYZ', 'XZY', 'YXZ', 'YZX', 'ZXY', 'ZYX', 
+                   'xyz', 'xzy', 'yxz', 'yzx', 'zxy', 'zyx']
+    
+    for convention in conventions:
+        try:
+            if convention.isupper():  # Extrinsic
+                R_scipy = Rotation.from_euler(convention, [phi, theta, psi], degrees=False).as_matrix()
+            else:  # Intrinsic
+                R_scipy = Rotation.from_euler(convention, [phi, theta, psi], degrees=False).as_matrix()
+            
+            # Check if matrices are close
+            if np.allclose(R_manual, R_scipy, atol=1e-6):
+                print(f"MATCH FOUND: {convention}")
+                return convention
+            
+            # Also check transpose (in case it's the inverse transformation)
+            if np.allclose(R_manual, R_scipy.T, atol=1e-6):
+                print(f"TRANSPOSE MATCH FOUND: {convention} (use inverse)")
+                return convention + "_inverse"
+                
+        except Exception as e:
+            print(f"Error with {convention}: {e}")
+    
+    print("No exact match found")
+    return None
+
 def main():
     model_path = file_path / 'models' / 'general_session' / 'general_model'
 
@@ -76,7 +130,7 @@ def main():
 
     exitCondition = False
 
-    for _ in range(5000):
+    for _ in range(1000):
         
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, done, info = env.step(action)
@@ -99,27 +153,46 @@ def main():
         drone_position = env.world_states[0, 0:3]  # [x, y, z] in world frame
         drone_velocity = env.world_states[0, 3:6]  # [vx, vy, vz] in world frame
         drone_euler = env.world_states[0, 6:9]     # [phi, theta, psi] in world frame
+
+        phi, theta, psi = drone_euler
+
+        rotation_quat = Rotation.from_euler('xyz', drone_euler, degrees=False).as_quat()
+
+        rr.log(
+            'drone/drone_model',
+            rr.Asset3D(path=file_path / 'Drone.obj')
+        )
+        rr.log(
+            'drone/drone_model',
+            rr.Transform3D(
+                translation=drone_position,
+                quaternion=rotation_quat
+            )
+        )
+        rr.log('drone/drone_axis', 
+            rr.Transform3D(
+                translation=drone_position,
+                quaternion=rotation_quat,
+                axis_length=1
+            ))
         
         rr.log(
-                'drone/drone_model',
-                rr.Transform3D(
-                    translation=drone_position,
-                    quaternion=Rotation.from_euler('xyz', drone_euler).as_quat()
-                    
-                )
-            )
+            'drone/drone_model_stationary',
+            rr.Asset3D(path=file_path / 'Drone.obj')
+        )
         rr.log(
-                'drone/drone_model',
-                rr.Asset3D(path=file_path / 'Drone.obj')
+            'drone/drone_model_stationary',
+            rr.Transform3D(
+                translation=[0,0,0],
+                quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat()
             )
-        
-        # Log drone transform using world coordinates
-        rr.log('drone/transform', 
-               rr.Transform3D(
-                   translation=drone_position,
-                   mat3x3=Rotation.from_euler('xyz', drone_euler).as_matrix(),
-                   axis_length=1.2
-               ))
+        )
+        rr.log('drone/drone_axis_stationary', 
+            rr.Transform3D(
+                translation=[0,0,0],
+                quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat(),
+                axis_length=1
+            ))
         
         rr.log('drone/phi', rr.Scalars(drone_euler[0]))
         rr.log('drone/theta', rr.Scalars(drone_euler[1]))
@@ -128,9 +201,6 @@ def main():
         # Add to trajectory and log it
         trajectory_points.append(drone_position.copy())
         rr.log('drone/trajectory', rr.LineStrips3D([trajectory_points], colors=[0, 255, 0]))
-        
-        # # Log current position as a point
-        # rr.log('drone/position', rr.Points3D([drone_position], colors=[255, 0, 0], radii=[0.1]))
         
         # Log velocity vector
         if np.linalg.norm(drone_velocity) > 0.1:  # Only show if moving
@@ -174,10 +244,6 @@ def main():
                 f"{instance_path}/model",
                 rr.Asset3D(path=obj_file_path)
             )
-            # rr.log(
-            #     f"{instance_path}/texture",
-            #     rr.Image(plt.imread(png_file_path),color_model="RGBA")
-            # )
 
         # Log metrics
         rr.log('metrics/reward', rr.Scalars(reward[0]))

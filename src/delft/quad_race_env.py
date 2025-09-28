@@ -368,9 +368,9 @@ class Quadcopter3DGates(VecEnv):
         vy0 = np.random.uniform(-0.5,0.5, size=(num_reset,))
         vz0 = np.random.uniform(-0.5,0.5, size=(num_reset,))
         
-        phi0   = np.random.uniform(-np.pi/9,np.pi/9, size=(num_reset,))
-        theta0 = np.random.uniform(-np.pi/9,np.pi/9, size=(num_reset,))
-        psi0   = np.random.uniform(-np.pi,np.pi, size=(num_reset,))
+        phi0   = np.random.uniform(0,0, size=(num_reset,))
+        theta0 = np.random.uniform(0,0, size=(num_reset,))
+        psi0   = np.random.uniform(0,0, size=(num_reset,))
         
         p0 = np.random.uniform(-0.1,0.1, size=(num_reset,))
         q0 = np.random.uniform(-0.1,0.1, size=(num_reset,))
