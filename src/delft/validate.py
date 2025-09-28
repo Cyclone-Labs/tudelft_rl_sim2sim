@@ -17,14 +17,14 @@ easy_pos = np.array([
     [ 6.   , 22., -6.2],
     [ 11.  , 30., -6.2],
     [ 11. - 2.1*np.cos(np.pi/3.), 30.+ 2.1*np.sin(np.pi/3.), -5.1],
-    [ 11.  , 30., -4.1],
+    [ 11.  , 30., -3.5],
     [ 19.  , 34., -6.2],
     [ 27.  , 30., -6.2],
     [ 32.  , 22., -6.2],
     [ 29.  , 14., -6.2],
     [ 30.  , 6. , -6.2],
     [ 17.  , 18., -6.2],
-    [ 13.5 , 6. , -4.1]
+    [ 13.5 , 6. , -3.5]
 ])
 easy_yaw = np.array([
                      7/12,
@@ -175,7 +175,7 @@ def main():
         )
         rr.log(
             f"{instance_path}/model",
-            rr.Asset3D(path=obj_file_path),
+            rr.Asset3D(path=obj_file_path, albedo_factor=[0.9,0.9,0.9,1.0]),
             static=True
         )
     for _ in range(1000):
