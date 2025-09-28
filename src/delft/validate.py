@@ -130,6 +130,54 @@ def main():
 
     exitCondition = False
 
+    rr.log(
+        'drone/drone_model',
+        rr.Asset3D(path=file_path / 'Drone.obj'),
+        static=True
+    )
+
+    rr.log(
+        'drone/drone_model_stationary',
+        rr.Asset3D(path=file_path / 'Drone.obj'),
+        static=True
+    )
+    rr.log(
+        'drone/drone_model_stationary',
+        rr.Transform3D(
+            translation=[0,0,0],
+            quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat()
+        ),
+        static=True
+    )
+    rr.log('drone/drone_axis_stationary', 
+        rr.Transform3D(
+            translation=[0,0,0],
+            quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat(),
+            axis_length=1
+        ), static=True)
+
+            
+    for i, (gate_pos, gate_yaw) in enumerate(zip(env.gate_pos, env.gate_yaw)):
+        # Log 3d gate model
+        obj_file_path = file_path / "gate.obj"
+
+        if not os.path.exists(obj_file_path):
+            print(f"WARNING: File {obj_file_path} not found!")
+
+        instance_path = f"gate_models/gate_{i}"
+        rr.log(
+            instance_path,
+            rr.Transform3D(
+                translation=gate_pos,
+                rotation=rr.Quaternion(xyzw=Rotation.from_euler('XYZ', [0.0, 0.0, gate_yaw]).as_quat())
+            ),
+            static=True
+        )
+        rr.log(
+            f"{instance_path}/model",
+            rr.Asset3D(path=obj_file_path),
+            static=True
+        )
     for _ in range(1000):
         
         action, _states = model.predict(obs, deterministic=True)
@@ -160,10 +208,6 @@ def main():
 
         rr.log(
             'drone/drone_model',
-            rr.Asset3D(path=file_path / 'Drone.obj')
-        )
-        rr.log(
-            'drone/drone_model',
             rr.Transform3D(
                 translation=drone_position,
                 quaternion=rotation_quat
@@ -176,23 +220,6 @@ def main():
                 axis_length=1
             ))
         
-        rr.log(
-            'drone/drone_model_stationary',
-            rr.Asset3D(path=file_path / 'Drone.obj')
-        )
-        rr.log(
-            'drone/drone_model_stationary',
-            rr.Transform3D(
-                translation=[0,0,0],
-                quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat()
-            )
-        )
-        rr.log('drone/drone_axis_stationary', 
-            rr.Transform3D(
-                translation=[0,0,0],
-                quaternion=Rotation.from_euler('xyz', [0,0,0], degrees=False).as_quat(),
-                axis_length=1
-            ))
         
         rr.log('drone/phi', rr.Scalars(drone_euler[0]))
         rr.log('drone/theta', rr.Scalars(drone_euler[1]))
@@ -225,25 +252,6 @@ def main():
                         vectors=[gate_direction],
                         colors=[color]
                     ))
-            
-            # Log 3d gate model
-            obj_file_path = file_path / "gate.obj"
-
-            if not os.path.exists(obj_file_path):
-                print(f"WARNING: File {obj_file_path} not found!")
-
-            instance_path = f"gate_models/gate_{i}"
-            rr.log(
-                instance_path,
-                rr.Transform3D(
-                    translation=gate_pos,
-                    rotation=rr.Quaternion(xyzw=Rotation.from_euler('XYZ', [0.0, 0.0, gate_yaw]).as_quat())
-                )
-            )
-            rr.log(
-                f"{instance_path}/model",
-                rr.Asset3D(path=obj_file_path)
-            )
 
         # Log metrics
         rr.log('metrics/reward', rr.Scalars(reward[0]))
