@@ -46,64 +46,35 @@ hard_pos = np.delete(easy_pos, 4, axis=0)
 hard_yaw = np.delete(easy_yaw, 4)
 hard_start = hard_pos[0] + np.array([1.,-3.,0])
 
+gate_height = 1.35 + 0.1
+gate_map = np.array(
+    [
+        [12.5, 2, gate_height, 90],
+        [6.5, 6, gate_height, 45],
+        [5.5, 14, gate_height, 30],
+        [2.5, 24, gate_height, 0],
+        [7.5, 30, gate_height, 80 + 180],
+        [12.2, 22, gate_height, 90 + 180],
+        [17.5, 30, gate_height, -10],
+        [17.5, 30, gate_height + 2.7, -10 + 180],
+        [18.5, 22, gate_height, 10 + 180],
+        [20.5, 14, gate_height, -10 + 180],
+        [18.5, 6, gate_height, -45 + 180],
+        [18.5, 6, gate_height + 2.7, -45 + 180],
+    ]
+)
+gate_map[:,2] -= 5
+hard_pos = gate_map[:,0:3]
+hard_yaw = gate_map[:,3]
+hard_yaw = (hard_yaw+90) * np.pi / 180
+hard_yaw = hard_yaw.flatten()
+hard_start = np.array([18.5, 2, gate_height-5])
+
 # init rerun
 rr.init("quadcopter_controller_validation", spawn=False)
 
 file_path = Path(__file__).parent
 
-
-def test_rotation_conventions(drone_euler):
-    """Test different rotation conventions to see which matches the drone's actual orientation"""
-    
-    phi, theta, psi = drone_euler
-    
-    print(f"Drone Euler angles: phi={phi:.3f}, theta={theta:.3f}, psi={psi:.3f}")
-    
-    # Manually construct the rotation matrix as in the quadcopter dynamics
-    Rx = np.array([[1, 0, 0], 
-                   [0, np.cos(phi), -np.sin(phi)], 
-                   [0, np.sin(phi), np.cos(phi)]])
-    
-    Ry = np.array([[np.cos(theta), 0, np.sin(theta)], 
-                   [0, 1, 0], 
-                   [-np.sin(theta), 0, np.cos(theta)]])
-    
-    Rz = np.array([[np.cos(psi), -np.sin(psi), 0], 
-                   [np.sin(psi), np.cos(psi), 0], 
-                   [0, 0, 1]])
-    
-    # The rotation matrix from the dynamics: R = Rz*Ry*Rx
-    R_manual = Rz @ Ry @ Rx
-    
-    print("Manual rotation matrix (Rz*Ry*Rx):")
-    print(R_manual)
-    
-    # Test different scipy conventions
-    conventions = ['XYZ', 'XZY', 'YXZ', 'YZX', 'ZXY', 'ZYX', 
-                   'xyz', 'xzy', 'yxz', 'yzx', 'zxy', 'zyx']
-    
-    for convention in conventions:
-        try:
-            if convention.isupper():  # Extrinsic
-                R_scipy = Rotation.from_euler(convention, [phi, theta, psi], degrees=False).as_matrix()
-            else:  # Intrinsic
-                R_scipy = Rotation.from_euler(convention, [phi, theta, psi], degrees=False).as_matrix()
-            
-            # Check if matrices are close
-            if np.allclose(R_manual, R_scipy, atol=1e-6):
-                print(f"MATCH FOUND: {convention}")
-                return convention
-            
-            # Also check transpose (in case it's the inverse transformation)
-            if np.allclose(R_manual, R_scipy.T, atol=1e-6):
-                print(f"TRANSPOSE MATCH FOUND: {convention} (use inverse)")
-                return convention + "_inverse"
-                
-        except Exception as e:
-            print(f"Error with {convention}: {e}")
-    
-    print("No exact match found")
-    return None
 
 def main():
     model_path = file_path / 'models' / 'general_session' / 'general_model'
@@ -115,6 +86,8 @@ def main():
     except ValueError:
         print("No files found in the models folder")
         model_path = file_path / 'OptimizedModel'
+
+    model_path = file_path / 'OptimizedModel'
 
     model = PPO.load(str(model_path))
     env = Quadcopter3DGates(num_envs=1, 

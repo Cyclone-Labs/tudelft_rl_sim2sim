@@ -425,7 +425,7 @@ class Quadcopter3DGates(VecEnv):
 
         prog_rewards = 10.0 * (d2g_old - d2g_new)
 
-        time_penalty = 0.02
+        time_penalty = 0.0
         
         gate_hole = 1.5
         gate_outside = 2.7
