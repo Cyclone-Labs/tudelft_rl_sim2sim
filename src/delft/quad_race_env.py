@@ -79,7 +79,7 @@ Dy = -k_y*vby*(W1+W2+W3+W4)
 # Moments
 Mx = -k_p1*W1**2 - k_p2*W2**2 + k_p3*W3**2 + k_p4*W4**2
 My = -k_q1*W1**2 + k_q2*W2**2 - k_q3*W3**2 + k_q4*W4**2
-Mz = -k_r1*W1 + k_r2*W2 + k_r3*W3 - k_r4*W4 - k_r5*d_W1 + k_r6*d_W1 + k_r7*d_W1 - k_r8*d_W1
+Mz = -k_r1*W1 + k_r2*W2 + k_r3*W3 - k_r4*W4 - k_r5*d_W1 + k_r6*d_W2 + k_r7*d_W3 - k_r8*d_W4
 
 # Dynamics
 d_x = vx
@@ -360,9 +360,9 @@ class Quadcopter3DGates(VecEnv):
             # set target gates to 0
             self.target_gates[dones] = np.zeros(num_reset, dtype=int)
             # use start_pos
-            x0 = 0*np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[0]
-            y0 = 0*np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[1]
-            z0 = 0*np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[2]
+            x0 = np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[0]
+            y0 = np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[1]
+            z0 = np.random.uniform(-0.5,0.5, size=(num_reset,)) + self.start_pos[2]
         
         vx0 = np.random.uniform(-0.5,0.5, size=(num_reset,))
         vy0 = np.random.uniform(-0.5,0.5, size=(num_reset,))

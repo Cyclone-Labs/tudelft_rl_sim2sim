@@ -119,6 +119,53 @@ hard_pos = np.delete(easy_pos, 4, axis=0)
 hard_yaw = np.delete(easy_yaw, 4)
 hard_start = hard_pos[0] + np.array([1.,-3.,0])
 
+gate_height = 1.35 + 0.1
+gate_map = np.array(
+    [
+        [12.5, 2, gate_height, 90],
+        [6.5, 6, gate_height, 45],
+        [5.5, 14, gate_height, 30],
+        [2.5, 24, gate_height, 0],
+        [7.5, 30, gate_height, 80 + 180],
+        [12.2, 22, gate_height, 90 + 180],
+        [17.5, 30, gate_height, -10],
+        [17.5, 30, gate_height + 2.7, -10 + 180],
+        [18.5, 22, gate_height, 10 + 180],
+        [20.5, 14, gate_height, -10 + 180],
+        [18.5, 6, gate_height, -45 + 180],
+        [18.5, 6, gate_height + 2.7, -45 + 180],
+    ]
+)
+gate_map[:,2] -= 6
+hard_pos = gate_map[:,0:3]
+hard_yaw = gate_map[:,3]
+hard_yaw = (hard_yaw+90) * np.pi / 180
+hard_yaw = hard_yaw.flatten()
+hard_start = np.array([18.5, 2, gate_height-6])
+
+gate_height_ned = -1.35
+map_ned = np.array([
+    [2 , 12.5, gate_height_ned    ,-90 ],
+    [6 , 6.5 , gate_height_ned    ,-45 ],
+    [14, 5.5 , gate_height_ned    ,-30 ],
+    [24, 2.5 , gate_height_ned    , 0  ],
+    [30, 7.5 , gate_height_ned    , 100],
+    [22, 12.2, gate_height_ned    , 90 ],
+    [30, 17.5, gate_height_ned    , 10 ],
+    [30, 17.5, gate_height_ned-2.7,-170],
+    [22, 18.5, gate_height_ned    , 170],
+    [14, 20.5, gate_height_ned    ,-170],
+    [6 , 18.5, gate_height_ned    ,-135],
+    [6 , 18.5, gate_height_ned-2.7,-135],
+])
+pos_ned = map_ned[:,:3]
+yaw_ned = map_ned[:,3].flatten() 
+yaw_ned *= np.pi / 180.
+start_ned = np.array([2,18,-gate_height,0,0,-np.pi / 2],dtype=np.float32)
+
+hard_pos = pos_ned
+hard_yaw = yaw_ned
+hard_start = start_ned
 
 # SETUP LOGGING
 models_dir = 'models/'+args.session_name
@@ -242,7 +289,7 @@ def train(model, log_name, n=int(2e8)):
         print('Model saved at', models_dir + '/' + log_name + '/' + str(time_steps))
 
         # show progress as model trains
-        #subprocess.Popen(['python', 'validate.py'])
+        subprocess.Popen(['python', 'validate.py'])
     
         
 
